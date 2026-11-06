@@ -91,6 +91,8 @@ def init_db():
         rate_color_double REAL DEFAULT 18.0,
         rate_photo_4x6 REAL DEFAULT 30.0,
         rate_photo_a4 REAL DEFAULT 40.0,
+        rate_passport REAL DEFAULT 5.0,
+        rate_stamp REAL DEFAULT 2.0,
         is_active INTEGER DEFAULT 1,
         created_at TEXT NOT NULL
     );
@@ -150,6 +152,10 @@ def init_db():
         cursor.execute("ALTER TABLE shops ADD COLUMN remove_bg_api_key TEXT DEFAULT ''")
     if "file_retention_days" not in cols:
         cursor.execute("ALTER TABLE shops ADD COLUMN file_retention_days REAL DEFAULT 1.0")
+    if "rate_passport" not in cols:
+        cursor.execute("ALTER TABLE shops ADD COLUMN rate_passport REAL DEFAULT 5.0")
+    if "rate_stamp" not in cols:
+        cursor.execute("ALTER TABLE shops ADD COLUMN rate_stamp REAL DEFAULT 2.0")
 
     # 4. File Transfers Table (customer -> shop inbox, shop -> customer share links)
     cursor.execute("""
@@ -354,6 +360,8 @@ def update_shop_settings(shop_id: int, data: Dict[str, Any]):
         rate_color_double = ?,
         rate_photo_4x6 = ?,
         rate_photo_a4 = ?,
+        rate_passport = ?,
+        rate_stamp = ?,
         remove_bg_api_key = ?,
         file_retention_days = ?
     WHERE id = ?
@@ -369,6 +377,8 @@ def update_shop_settings(shop_id: int, data: Dict[str, Any]):
         data.get("rate_color_double", 18.0),
         data.get("rate_photo_4x6", 30.0),
         data.get("rate_photo_a4", 40.0),
+        float(data.get("rate_passport", 5.0) or 5.0),
+        float(data.get("rate_stamp", 2.0) or 2.0),
         data.get("remove_bg_api_key", ""),
         ret_days,
         shop_id

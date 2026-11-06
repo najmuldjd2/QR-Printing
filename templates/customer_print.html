@@ -858,6 +858,24 @@
               <button type="button" onclick="setCropRatio('square')" id="cropBtnSquare" class="crop-ratio-btn py-1.5 px-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg">১:১ স্কয়ার</button>
               <button type="button" onclick="rotateCropper(90)" class="py-1.5 px-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg flex items-center justify-center gap-1">↻ ৯০°</button>
             </div>
+            <!-- Custom Dimension Input with Live Unit & Conversion (2 in x 6 in, 300x600 px etc) -->
+            <div class="p-2 bg-slate-100 rounded-xl border border-slate-200 text-xs space-y-1.5">
+              <div class="flex items-center justify-between gap-1">
+                <span class="font-bold text-slate-800 text-[11px] flex items-center gap-1">📐 যেকোনো কাস্টম মাপ দিন:</span>
+                <select id="cropCustomUnit" onchange="applyCropCustomDimensions()" class="px-1.5 py-0.5 border border-slate-300 rounded text-[11px] bg-white font-bold text-slate-700">
+                  <option value="inch">ইঞ্চি (inch)</option>
+                  <option value="px">পিক্সেল (px @ 300 DPI)</option>
+                  <option value="mm">মিমি (mm)</option>
+                </select>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <input type="number" id="cropCustomW" oninput="applyCropCustomDimensions()" placeholder="W (যেমন 2)" class="w-1/2 px-2 py-1 border rounded text-xs font-bold text-center bg-white">
+                <span class="text-gray-400 font-bold">×</span>
+                <input type="number" id="cropCustomH" oninput="applyCropCustomDimensions()" placeholder="H (যেমন 6)" class="w-1/2 px-2 py-1 border rounded text-xs font-bold text-center bg-white">
+                <button type="button" onclick="applyCropCustomDimensions(true)" class="px-2.5 py-1 bg-pink-600 hover:bg-pink-700 text-white rounded font-bold text-[11px] shrink-0">প্রয়োগ</button>
+              </div>
+              <div id="cropCustomSizeBadge" class="hidden text-[10px] text-slate-700 font-mono bg-white p-1 rounded border border-slate-200 text-center font-bold"></div>
+            </div>
           </div>
         </div>
 
@@ -1284,7 +1302,9 @@
       color_single: {{ shop.rate_color_single }},
       color_double: {{ shop.rate_color_double }},
       photo_4x6: {{ shop.rate_photo_4x6 }},
-      photo_a4: {{ shop.rate_photo_a4 }}
+      photo_a4: {{ shop.rate_photo_a4 }},
+      rate_passport: {{ shop.rate_passport | default(5.0, true) }},
+      rate_stamp: {{ shop.rate_stamp | default(2.0, true) }}
     };
   </script>
   <script src="/static/customer_print.js?v=2026102519"></script>

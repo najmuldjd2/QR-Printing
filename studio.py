@@ -41,13 +41,14 @@ def sanitize_params(raw: Dict) -> Dict:
 
     items = []
     for it in (raw.get("items") or [])[:MAX_ITEMS]:
-        w = _num(it.get("w"), 10, 190, 0)
-        h = _num(it.get("h"), 10, 280, 0)
+        w = _num(it.get("w"), 10, 205, 0)
+        h = _num(it.get("h"), 10, 290, 0)
         count = int(_num(it.get("count"), 0, 60, 0))
         if w and h and count > 0:
             item_entry = {
                 "w": w,
                 "h": h,
+                "preset": str(it.get("preset") or ""),
                 "count": count,
                 "file_id": str(it.get("file_id") or "").strip() or None,
                 "photo_idx": int(_num(it.get("photo_idx"), 0, 20, 0)),

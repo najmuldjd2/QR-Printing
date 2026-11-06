@@ -3,6 +3,7 @@ import re
 import io
 import uuid
 import json
+import base64
 import shutil
 import logging
 
@@ -667,6 +668,8 @@ async def update_settings(
     rate_color_double: float = Form(18.0),
     rate_photo_4x6: float = Form(30.0),
     rate_photo_a4: float = Form(40.0),
+    rate_passport: float = Form(5.0),
+    rate_stamp: float = Form(2.0),
     remove_bg_api_key: str = Form(""),
     file_retention_days: float = Form(1.0)
 ):
@@ -686,6 +689,8 @@ async def update_settings(
         "rate_color_double": rate_color_double,
         "rate_photo_4x6": rate_photo_4x6,
         "rate_photo_a4": rate_photo_a4,
+        "rate_passport": rate_passport,
+        "rate_stamp": rate_stamp,
         "remove_bg_api_key": remove_bg_api_key.strip(),
         "file_retention_days": file_retention_days
     })
@@ -893,6 +898,53 @@ async def edit_order_details(order_id: str, request: Request):
     db.update_order_details(order_id, updates)
     await manager.notify_admin(shop["id"], {"event": "ORDER_UPDATED", "order_id": order_id})
     return {"success": True, "updated": updates}
+
+
+@app.post("/admin/order/{order_id}/save-crop")
+async def admin_save_order_crop(order_id: str, request: Request):
+    shop = get_current_shop(request)
+    if not shop:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    order = db.get_order(order_id)
+    if not order or order["shop_id"] != shop["id"]:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    body = await request.json()
+    image_data = body.get("image_data") or ""
+    if not image_data:
+        raise HTTPException(status_code=400, detail="No image data provided")
+
+    if "," in image_data:
+        image_data = image_data.split(",", 1)[1]
+
+    try:
+        raw_bytes = base64.b64decode(image_data)
+        im = Image.open(io.BytesIO(raw_bytes))
+        im = ImageOps.exif_transpose(im).convert("RGB")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid image data: {e}")
+
+    orig_path = order["file_path"]
+    fid = uuid.uuid4().hex[:10]
+    new_filename = f"cropped_{fid}.jpg"
+    new_path = os.path.join(UPLOAD_DIR, new_filename)
+
+    im.save(new_path, "JPEG", quality=95)
+
+    if storage.is_r2_configured() and os.path.isfile(new_path):
+        await asyncio.to_thread(storage.upload_file_to_r2, new_path)
+
+    if orig_path != new_path and os.path.isfile(orig_path):
+        utils.secure_delete_file(orig_path)
+
+    db.update_order_details(order_id, {
+        "file_path": new_path,
+        "file_type": "image",
+        "page_count": 1
+    })
+
+    await manager.notify_admin(shop["id"], {"event": "ORDER_UPDATED", "order_id": order_id})
+    return {"success": True, "file_path": new_path}
 
 @app.get("/admin/order/{order_id}/file")
 async def admin_download_order_file(order_id: str, request: Request, inline: int = 0, json_url: int = 0, local: int = 0):
@@ -1966,10 +2018,25 @@ async def customer_create_order(request: Request):
         color_mode = "bw" if sp["bw"] else "color"
         duplex = "single"
         original_filename = f"Photo_Sheet_{sp['paper']}.pdf"
+        rate_passport = float(shop.get("rate_passport") or 5.0)
+        rate_stamp = float(shop.get("rate_stamp") or 2.0)
+        photo_items_cost = 0.0
+        for it in sp.get("items", []):
+            cnt = int(it.get("count", 0) or 0)
+            w = float(it.get("w", 0) or 0)
+            h = float(it.get("h", 0) or 0)
+            preset = str(it.get("preset", ""))
+            if preset == "stamp" or (w <= 25 and h <= 30):
+                photo_items_cost += cnt * rate_stamp
+            else:
+                photo_items_cost += cnt * rate_passport
+
         if sp["paper"] == "4x6":
-            rate = shop["rate_photo_4x6"]
+            sheet_rate = float(shop.get("rate_photo_4x6") or 30.0)
         else:
-            rate = shop["rate_bw_single"] if sp["bw"] else shop["rate_photo_a4"]
+            sheet_rate = float(shop.get("rate_bw_single") or 3.0) if sp["bw"] else float(shop.get("rate_photo_a4") or 40.0)
+
+        rate = photo_items_cost if photo_items_cost > 0 else sheet_rate
         total_price = rate * copies
     else:
         file_path = resolve_upload(file_id)

@@ -642,10 +642,35 @@
 
     if (currentMode === 'studio') {
       const sp = studioParams();
-      const rate = sp.paper === '4x6' ? RATES.photo_4x6 : (sp.bw ? RATES.bw_single : RATES.photo_a4);
-      const sc = parseInt($('studioCopies').value, 10);
+      const sc = parseInt($('studioCopies').value, 10) || 1;
+      let passportCount = 0;
+      let stampCount = 0;
+      let otherCount = 0;
+      (sp.items || []).forEach(it => {
+        const cnt = parseInt(it.count, 10) || 0;
+        const w = parseFloat(it.w) || 0;
+        const h = parseFloat(it.h) || 0;
+        if (it.preset === 'stamp' || (w <= 25 && h <= 30)) {
+          stampCount += cnt;
+        } else if (it.preset === 'p4555' || it.preset === 'p3545' || it.preset === 'p3851' || it.preset === 'p2530') {
+          passportCount += cnt;
+        } else {
+          otherCount += cnt;
+        }
+      });
+      const rPassport = (RATES.rate_passport !== undefined ? RATES.rate_passport : 5.0);
+      const rStamp = (RATES.rate_stamp !== undefined ? RATES.rate_stamp : 2.0);
+      const sheetRate = sp.paper === '4x6' ? RATES.photo_4x6 : (sp.bw ? RATES.bw_single : RATES.photo_a4);
+      
+      const photoCost = (passportCount * rPassport) + (stampCount * rStamp) + (otherCount * rPassport);
+      const rate = photoCost > 0 ? photoCost : sheetRate;
       total = rate * sc;
-      billSummaryText.innerText = `ফটো শিট (${sp.paper === '4x6' ? '৪×৬' : 'A4'}) × ${bn(sc)} কপি`;
+
+      let desc = [];
+      if (passportCount > 0) desc.push(`${bn(passportCount)}টি পাসপোর্ট (৳${rPassport})`);
+      if (stampCount > 0) desc.push(`${bn(stampCount)}টি স্ট্যাম্প (৳${rStamp})`);
+      if (otherCount > 0) desc.push(`${bn(otherCount)}টি কাস্টম ফটো (৳${rPassport})`);
+      billSummaryText.innerText = `${desc.join(' + ') || (sp.paper === '4x6' ? '৪×৬ ফটো শিট' : 'A4 ফটো শিট')} × ${bn(sc)} কপি`;
     } else if (uploadedFile.is_nid) {
       total = (color === 'bw' ? RATES.bw_single : RATES.color_single) * copies;
       billSummaryText.innerText = `NID কার্ড (${colorBn}) × ${bn(copies)} সেট`;
@@ -671,6 +696,30 @@
   };
 
 
+  function computeSizeDisplay(w_mm, h_mm) {
+    const w = parseFloat(w_mm) || 10;
+    const h = parseFloat(h_mm) || 10;
+    const inW = (w / 25.4).toFixed(2).replace(/\.00$/, '');
+    const inH = (h / 25.4).toFixed(2).replace(/\.00$/, '');
+    const pxW = Math.round((w / 25.4) * 300);
+    const pxH = Math.round((h / 25.4) * 300);
+    const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+    const g = gcd(Math.round(w), Math.round(h)) || 1;
+    const aspect = `${Math.round(w / g)}:${Math.round(h / g)}`;
+    return {
+      w_mm: w.toFixed(1).replace(/\.0$/, ''),
+      h_mm: h.toFixed(1).replace(/\.0$/, ''),
+      inW,
+      inH,
+      pxW,
+      pxH,
+      inchStr: `${inW} × ${inH}`,
+      mmStr: `${w.toFixed(1).replace(/\.0$/, '')} × ${h.toFixed(1).replace(/\.0$/, '')}`,
+      pxStr: `${pxW} × ${pxH}`,
+      aspectRatio: `অনুপাত ${aspect}`
+    };
+  }
+
   // ── PHOTO STUDIO ─────────────────────────────────────────────────────────
   const PRESETS = [
     { id: 'p4555', name: 'পাসপোর্ট ৪৫×৫৫ মিমি', w: 45, h: 55 },
@@ -678,7 +727,10 @@
     { id: 'p3851', name: 'স্টুডিও পাসপোর্ট ১.৫×২ ইঞ্চি (৩৮×৫১ মিমি)', w: 38, h: 51 },
     { id: 'p2530', name: 'ই-পাসপোর্ট অনলাইন ২৫×৩০ মিমি', w: 25, h: 30 },
     { id: 'stamp', name: 'স্ট্যাম্প সাইজ ২০×২৫ মিমি', w: 20, h: 25 },
-    { id: 'custom', name: 'নিজের সাইজ (মিমি)', w: 40, h: 50 }
+    { id: 'p2x6', name: '২×৬ ইঞ্চি ফটো স্ট্রিপ (৫০.৮×১৫২.৪ মিমি)', w: 50.8, h: 152.4 },
+    { id: 'p3x4', name: '৩×৪ ইঞ্চি ফটো (৭৬.২×১০১.৬ মিমি)', w: 76.2, h: 101.6 },
+    { id: 'p4x6', name: '৪×৬ ইঞ্চি পোস্টকার্ড ফটো (১০১.৬×১৫২.৪ মিমি)', w: 101.6, h: 152.4 },
+    { id: 'custom', name: '✏️ কাস্টম সাইজ (ইঞ্চি / px / মিমি ইনপুট)', w: 40, h: 50 }
   ];
   let studioItems = [{ preset: 'p4555', w: 45, h: 55, count: 6, photo_idx: 0, zoom: 1.0, ox: 0.0, oy: 0.0 }];
   let studioPhotos = []; // [{ file_id, name, url }]
@@ -921,7 +973,16 @@
            </div>`
         : '';
 
-      row.innerHTML = `
+        const sz = computeSizeDisplay(it.w, it.h);
+        it.unit = it.unit || 'inch';
+        if (it.custom_w === undefined) {
+          if (it.unit === 'inch') { it.custom_w = sz.inW; it.custom_h = sz.inH; }
+          else if (it.unit === 'px') { it.custom_w = sz.pxW; it.custom_h = sz.pxH; }
+          else if (it.unit === 'cm') { it.custom_w = (parseFloat(it.w) / 10).toFixed(1); it.custom_h = (parseFloat(it.h) / 10).toFixed(1); }
+          else { it.custom_w = sz.w_mm; it.custom_h = sz.h_mm; }
+        }
+
+        row.innerHTML = `
         <div class="flex items-center justify-between gap-2">
           <span class="text-xs font-bold text-gray-800 flex items-center gap-1.5">
             <span class="w-5 h-5 rounded-full ${isActive ? 'bg-pink-600 text-white' : 'bg-gray-200 text-gray-700'} flex items-center justify-center text-[11px] font-bold">${bn(i + 1)}</span>
@@ -943,11 +1004,49 @@
           </div>
         </div>
 
+        <div class="flex items-center justify-between text-[11px] text-gray-500 bg-white/80 px-2 py-1 rounded border border-gray-100 font-mono">
+          <span>📏 সাইজ: <b class="text-gray-800">${sz.inchStr}"</b> (${sz.mmStr} মিমি)</span>
+          <span class="text-indigo-600 font-bold">${sz.pxStr} px</span>
+        </div>
+
         ${photoOptions}
 
-        ${it.preset === 'custom' ? `<div class="flex items-center gap-2 text-xs">
-          চওড়া <input type="number" data-i="${i}" data-k="w" min="10" max="190" value="${it.w}" class="w-16 px-2 py-1 border rounded text-center font-bold"> মিমি ×
-          উচ্চতা <input type="number" data-i="${i}" data-k="h" min="10" max="280" value="${it.h}" class="w-16 px-2 py-1 border rounded text-center font-bold"> মিমি</div>` : ''}
+        ${it.preset === 'custom' ? `
+        <div class="bg-indigo-50/70 p-2.5 rounded-xl border border-indigo-200 space-y-2 text-xs">
+          <div class="flex items-center justify-between gap-2">
+            <span class="font-bold text-indigo-950 flex items-center gap-1">📐 কাস্টম সাইজ ইনপুট:</span>
+            <div class="flex items-center gap-1">
+              <span class="text-gray-500 font-semibold text-[11px]">একক:</span>
+              <select data-i="${i}" data-k="unit" class="px-2 py-0.5 border border-indigo-300 rounded font-bold text-xs bg-white text-indigo-900">
+                <option value="inch" ${it.unit === 'inch' ? 'selected' : ''}>ইঞ্চি (Inch)</option>
+                <option value="px" ${it.unit === 'px' ? 'selected' : ''}>পিক্সেল (px @ 300 DPI)</option>
+                <option value="mm" ${it.unit === 'mm' ? 'selected' : ''}>মিলিমিটার (mm)</option>
+                <option value="cm" ${it.unit === 'cm' ? 'selected' : ''}>সেন্টিমিটার (cm)</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <span class="text-[11px] text-gray-600 block mb-0.5 font-medium">চওড়া (Width):</span>
+              <input type="number" step="any" data-i="${i}" data-k="custom_w" value="${it.custom_w}" class="w-full px-2 py-1 border border-indigo-300 rounded text-center font-bold bg-white text-sm" placeholder="যেমন 2">
+            </div>
+            <div>
+              <span class="text-[11px] text-gray-600 block mb-0.5 font-medium">উচ্চতা (Height):</span>
+              <input type="number" step="any" data-i="${i}" data-k="custom_h" value="${it.custom_h}" class="w-full px-2 py-1 border border-indigo-300 rounded text-center font-bold bg-white text-sm" placeholder="যেমন 6">
+            </div>
+          </div>
+          <div class="bg-white p-2 rounded-lg border border-indigo-200 text-[11px] space-y-1">
+            <div class="font-bold text-indigo-900 flex items-center justify-between">
+              <span>📏 লাইভ ছবির মাপ (Live Dimensions):</span>
+              <span class="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-mono font-bold">${sz.aspectRatio}</span>
+            </div>
+            <div class="grid grid-cols-3 gap-1 text-[10px] text-gray-700 text-center font-mono">
+              <div class="bg-indigo-50/50 p-1 rounded"><b>${sz.inchStr}</b> ইঞ্চি</div>
+              <div class="bg-indigo-50/50 p-1 rounded"><b>${sz.mmStr}</b> মিমি</div>
+              <div class="bg-indigo-50/50 p-1 rounded"><b>${sz.pxStr}</b> px</div>
+            </div>
+          </div>
+        </div>` : ''}
       `;
       box.appendChild(row);
     });
@@ -968,9 +1067,31 @@
     const i = e.target.dataset.i, k = e.target.dataset.k;
     if (i === undefined) return;
     const it = studioItems[+i];
-    if (k === 'count') it.count = Math.max(1, Math.min(60, parseInt(e.target.value, 10) || 1));
-    else if (k === 'w' || k === 'h') it[k] = Math.max(10, parseFloat(e.target.value) || 10);
-    scheduleStudio();
+    if (k === 'count') {
+      it.count = Math.max(1, Math.min(60, parseInt(e.target.value, 10) || 1));
+      calculateBill();
+      scheduleStudio();
+    } else if (k === 'custom_w' || k === 'custom_h') {
+      it[k] = e.target.value;
+      const unit = it.unit || 'inch';
+      const rawW = parseFloat(it.custom_w) || 1;
+      const rawH = parseFloat(it.custom_h) || 1;
+      if (unit === 'inch') {
+        it.w = Math.max(5, Math.min(205, rawW * 25.4));
+        it.h = Math.max(5, Math.min(290, rawH * 25.4));
+      } else if (unit === 'px') {
+        it.w = Math.max(5, Math.min(205, (rawW / 300) * 25.4));
+        it.h = Math.max(5, Math.min(290, (rawH / 300) * 25.4));
+      } else if (unit === 'cm') {
+        it.w = Math.max(5, Math.min(205, rawW * 10));
+        it.h = Math.max(5, Math.min(290, rawH * 10));
+      } else {
+        it.w = Math.max(5, Math.min(205, rawW));
+        it.h = Math.max(5, Math.min(290, rawH));
+      }
+      renderStudioItems();
+      scheduleStudio();
+    }
   });
 
   $('studioItems').addEventListener('change', (e) => {
@@ -978,6 +1099,17 @@
       const it = studioItems[+e.target.dataset.i];
       const p = PRESETS.find((x) => x.id === e.target.value);
       it.preset = p.id; it.w = p.w; it.h = p.h;
+      it.custom_w = undefined; it.custom_h = undefined;
+      renderStudioItems();
+      scheduleStudio();
+    } else if (e.target.dataset.k === 'unit') {
+      const it = studioItems[+e.target.dataset.i];
+      it.unit = e.target.value;
+      const sz = computeSizeDisplay(it.w, it.h);
+      if (it.unit === 'inch') { it.custom_w = sz.inW; it.custom_h = sz.inH; }
+      else if (it.unit === 'px') { it.custom_w = sz.pxW; it.custom_h = sz.pxH; }
+      else if (it.unit === 'cm') { it.custom_w = (parseFloat(it.w) / 10).toFixed(1); it.custom_h = (parseFloat(it.h) / 10).toFixed(1); }
+      else { it.custom_w = sz.w_mm; it.custom_h = sz.h_mm; }
       renderStudioItems();
       scheduleStudio();
     } else if (e.target.dataset.k === 'photo_idx') {
@@ -2510,6 +2642,48 @@
     else if (ratio === 'stamp') cropper.setAspectRatio(20 / 25);
     else if (ratio === 'square') cropper.setAspectRatio(1);
     else cropper.setAspectRatio(NaN);
+  };
+
+  window.applyCropCustomDimensions = function(forceRatio = false) {
+    const unitEl = $('cropCustomUnit');
+    const wEl = $('cropCustomW');
+    const hEl = $('cropCustomH');
+    const badge = $('cropCustomSizeBadge');
+    if (!unitEl || !wEl || !hEl || !badge) return;
+
+    const unit = unitEl.value || 'inch';
+    const rawW = parseFloat(wEl.value);
+    const rawH = parseFloat(hEl.value);
+
+    if (!rawW || !rawH || rawW <= 0 || rawH <= 0) {
+      badge.classList.add('hidden');
+      return;
+    }
+
+    let w_mm = 0, h_mm = 0;
+    if (unit === 'inch') {
+      w_mm = rawW * 25.4;
+      h_mm = rawH * 25.4;
+    } else if (unit === 'px') {
+      w_mm = (rawW / 300) * 25.4;
+      h_mm = (rawH / 300) * 25.4;
+    } else {
+      w_mm = rawW;
+      h_mm = rawH;
+    }
+
+    const sz = computeSizeDisplay(w_mm, h_mm);
+    badge.classList.remove('hidden');
+    badge.innerHTML = `📏 মাপ: <b>${sz.inchStr}"</b> (${sz.mmStr} মিমি | ${sz.pxStr} px) • <span class="text-pink-600 font-bold">${sz.aspectRatio}</span>`;
+
+    if (cropper && (forceRatio || activeRatio === 'custom')) {
+      activeRatio = 'custom';
+      ['cropBtnFree', 'cropBtnNid', 'cropBtnPassport', 'cropBtnStamp', 'cropBtnSquare'].forEach(id => {
+        const b = $(id);
+        if (b) b.className = 'crop-ratio-btn py-1.5 px-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg';
+      });
+      cropper.setAspectRatio(rawW / rawH);
+    }
   };
 
   window.rotateCropper = function(deg) {
