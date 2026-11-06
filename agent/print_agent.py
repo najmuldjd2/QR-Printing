@@ -362,7 +362,7 @@ async def run_agent():
     print("=" * 60)
 
     config = load_config()
-    server_url = config.get("server_url", "https://qr-printing.onrender.com").rstrip("/")
+    server_url = config.get("server_url", "https://qr-print-bd.onrender.com").rstrip("/")
 
     if config.pop("api_key", None):
         save_config(config)
