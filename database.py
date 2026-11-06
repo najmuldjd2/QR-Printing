@@ -143,6 +143,8 @@ def init_db():
         cursor.execute("ALTER TABLE orders ADD COLUMN printer_target TEXT DEFAULT ''")
     if "orientation" not in order_cols:
         cursor.execute("ALTER TABLE orders ADD COLUMN orientation TEXT DEFAULT 'portrait'")
+    if "extra_data" not in order_cols:
+        cursor.execute("ALTER TABLE orders ADD COLUMN extra_data TEXT DEFAULT ''")
 
     # Migration: shops table extensions
     cols = [r[1] for r in cursor.execute("PRAGMA table_info(shops)").fetchall()]
@@ -393,9 +395,9 @@ def create_order(order_data: Dict[str, Any]) -> str:
     INSERT INTO orders (
         id, shop_id, customer_name, customer_phone, file_path, original_filename,
         file_type, page_count, copies, color_mode, paper_size, duplex,
-        page_range, orientation, printer_target, total_price, payment_method, trx_id, status, created_at
+        page_range, orientation, printer_target, total_price, payment_method, trx_id, status, created_at, extra_data
     ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
     )
     """, (
         order_data["id"],
@@ -417,7 +419,8 @@ def create_order(order_data: Dict[str, Any]) -> str:
         order_data.get("payment_method", "counter_cash"),
         order_data.get("trx_id", ""),
         order_data.get("status", "pending_payment"),
-        order_data.get("created_at", datetime.now().isoformat())
+        order_data.get("created_at", datetime.now().isoformat()),
+        order_data.get("extra_data", "")
     ))
     conn.commit()
     conn.close()
@@ -435,7 +438,8 @@ def update_order_details(order_id: str, updates: Dict[str, Any]):
     """Allows shop admin to edit print parameters (copies, color, paper_size, page_range, printer_target, total_price, etc.)"""
     allowed_keys = {
         "copies", "color_mode", "paper_size", "duplex", "page_range",
-        "orientation", "total_price", "printer_target", "customer_name"
+        "orientation", "total_price", "printer_target", "customer_name",
+        "file_path", "file_type", "page_count", "extra_data"
     }
     filtered = {k: v for k, v in updates.items() if k in allowed_keys}
     if not filtered:

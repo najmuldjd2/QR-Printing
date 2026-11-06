@@ -206,8 +206,8 @@
                     <a href="/admin/order/{{ o.id }}/file" target="_blank" download class="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded font-bold text-xs inline-block transition" title="ফাইল ডাউনলোড">
                       ⬇️
                     </a>
-                    <button type="button" data-order="{{ o | tojson | forceescape }}" onclick="openEditModal(JSON.parse(this.dataset.order))" class="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded font-bold text-xs transition" title="লাইভ প্রিভিউ ও কমান্ড এডিট করুন">
-                      ✏️ প্রিভিউ ও এডিট
+                    <button type="button" data-order="{{ o | tojson | forceescape }}" onclick="openEditModal(JSON.parse(this.dataset.order))" class="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded font-bold text-xs transition" title="লাইভ প্রিভিউ, ক্রপ ও স্ক্যান এডিট করুন">
+                      ✏️ এডিট, ক্রপ ও স্ক্যান
                     </button>
                   {% endif %}
                   {% if o.status in ["pending_payment", "paid"] %}
@@ -301,8 +301,8 @@
                     <a href="/admin/order/{{ o.id }}/file" target="_blank" download class="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded font-bold text-xs inline-block transition" title="ফাইল ডাউনলোড">
                       ⬇️
                     </a>
-                    <button type="button" data-order="{{ o | tojson | forceescape }}" onclick="openEditModal(JSON.parse(this.dataset.order))" class="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded font-bold text-xs transition" title="লাইভ প্রিভিউ ও কমান্ড এডিট করুন">
-                      ✏️ প্রিভিউ ও এডিট
+                    <button type="button" data-order="{{ o | tojson | forceescape }}" onclick="openEditModal(JSON.parse(this.dataset.order))" class="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded font-bold text-xs transition" title="লাইভ প্রিভিউ, ক্রপ ও স্ক্যান এডিট করুন">
+                      ✏️ এডিট, ক্রপ ও স্ক্যান
                     </button>
                     <button onclick="approveOrder('{{ o.id }}', true)" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-xs transition" title="একই বা নতুন সেটিংসে পুনরায় প্রিন্ট করুন">
                       🔄 আবার প্রিন্ট
@@ -526,10 +526,81 @@
             <button type="button" onclick="stepEditPreviewPage(1)" class="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 rounded font-bold">পরের পাতা ▶</button>
           </div>
 
-          <!-- Smart Crop / Straighten Button for this order -->
-          <button type="button" id="btnAdminCropOrderFile" onclick="openOrderCropModal()" class="w-full py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow flex items-center justify-center gap-1.5 transition">
-            <span>✂️</span> <span>এই ছবি / ডকুমেন্টের ক্রপ ও সোজা করুন (Smart Crop)</span>
-          </button>
+          <!-- Customer-Like Tools Toolbar: Crop & Straighten, Rotate 90, CamScanner Quality -->
+          <div class="w-full grid grid-cols-3 gap-1.5 pt-1">
+            <button type="button" onclick="openOrderCropModal()" class="py-2 px-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow flex items-center justify-center gap-1 transition" title="ছবি বা ডকুমেন্টের কোণা সোজা ও ক্রপ করুন">
+              <span>✂️</span> <span>ক্রপ ও সোজা</span>
+            </button>
+            <button type="button" onclick="rotateCurrentOrderPage()" class="py-2 px-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow flex items-center justify-center gap-1 transition" title="ডকুমেন্ট বা ছবি ৯০° ডানে ঘোরান">
+              <span>↻</span> <span>পাতা ঘোরান</span>
+            </button>
+            <button type="button" onclick="openAdminCamscanModal()" class="py-2 px-1.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-xl text-xs font-bold shadow flex items-center justify-center gap-1 transition" title="ক্যামস্ক্যানার ম্যাজিক কোয়ালিটি ও স্পষ্ট করুন">
+              <span>🎨</span> <span>CamScan</span>
+            </button>
+          </div>
+
+          <!-- Dedicated NID Card Editor Section (active when order is NID) -->
+          <div id="editOrderNidSection" class="hidden w-full p-2.5 bg-indigo-50/80 rounded-xl border border-indigo-200 space-y-2">
+            <div class="flex items-center justify-between text-indigo-950 font-bold text-xs">
+              <span class="flex items-center gap-1"><span>🪪</span> <span>NID কার্ড এডিটর (দুই পিঠ)</span></span>
+              <span class="text-[10px] text-indigo-700 font-mono">আসল NID ৮৫.৬ × ৫৪ মিমি</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 text-center text-xs">
+              <div class="border rounded-lg p-1.5 bg-white flex flex-col items-center">
+                <span class="font-bold text-[10px] text-gray-700 mb-1">১. সামনের পিঠ (Front)</span>
+                <img id="editNidFrontImg" src="" class="w-full h-14 object-cover rounded border bg-slate-50 mb-1" alt="NID Front">
+                <div class="flex gap-1 w-full">
+                  <button type="button" onclick="openOrderNidCrop('front')" class="flex-1 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded font-bold text-[10px]">✂️ ক্রপ</button>
+                  <button type="button" onclick="rotateOrderNid('front')" class="flex-1 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-300 rounded font-bold text-[10px]">↻ ৯০°</button>
+                </div>
+              </div>
+              <div class="border rounded-lg p-1.5 bg-white flex flex-col items-center">
+                <span class="font-bold text-[10px] text-gray-700 mb-1">২. পেছনের পিঠ (Back)</span>
+                <img id="editNidBackImg" src="" class="w-full h-14 object-cover rounded border bg-slate-50 mb-1" alt="NID Back">
+                <div class="flex gap-1 w-full">
+                  <button type="button" onclick="openOrderNidCrop('back')" class="flex-1 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded font-bold text-[10px]">✂️ ক্রপ</button>
+                  <button type="button" onclick="rotateOrderNid('back')" class="flex-1 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-300 rounded font-bold text-[10px]">↻ ৯০°</button>
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center justify-between pt-1 border-t border-indigo-200 text-xs">
+              <span class="font-bold text-gray-700 text-[11px]">ফিট মোড:</span>
+              <div class="flex gap-1">
+                <button type="button" id="btnEditNidFitCover" onclick="setOrderNidFit('cover')" class="px-2 py-0.5 bg-pink-600 text-white rounded font-bold text-[10px]">Cover (ভরাট)</button>
+                <button type="button" id="btnEditNidFitContain" onclick="setOrderNidFit('contain')" class="px-2 py-0.5 bg-white border text-gray-700 rounded font-bold text-[10px]">Contain (সম্পূর্ণ)</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dedicated Photo Studio Section (active when order is Photo Studio) -->
+          <div id="editOrderStudioSection" class="hidden w-full p-2.5 bg-pink-50/70 rounded-xl border border-pink-200 space-y-2">
+            <div class="flex items-center justify-between text-pink-950 font-bold text-xs">
+              <span class="flex items-center gap-1"><span>📸</span> <span>ফটো স্টুডিও এডিটর</span></span>
+              <button type="button" onclick="openOrderStudioCrop()" class="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-[10px] shadow-xs flex items-center gap-1">
+                <span>✂️</span> <span>মূল ছবি ক্রপ</span>
+              </button>
+            </div>
+            <div id="editOrderStudioItemsContainer" class="space-y-1.5 max-h-40 overflow-y-auto"></div>
+            <button type="button" onclick="addEditOrderStudioRow()" class="w-full py-1 border border-dashed border-pink-400 text-pink-700 bg-white rounded-lg text-xs font-bold hover:bg-pink-50">
+              ➕ আরো সাইজ যোগ করুন
+            </button>
+            <div class="grid grid-cols-2 gap-2 pt-1 border-t border-pink-200 text-[10px]">
+              <div>
+                <div class="flex justify-between font-semibold text-gray-600">
+                  <span>☀️ ব্রাইটনেস</span>
+                  <span id="valEditOrderStudioBrightness" class="font-mono text-pink-600 font-bold">0</span>
+                </div>
+                <input type="range" id="editOrderStudioBrightness" min="-60" max="60" value="0" oninput="document.getElementById('valEditOrderStudioBrightness').innerText = this.value; triggerEditOrderStudioChange()" class="w-full accent-pink-600">
+              </div>
+              <div>
+                <div class="flex justify-between font-semibold text-gray-600">
+                  <span>◐ কনট্রাস্ট</span>
+                  <span id="valEditOrderStudioContrast" class="font-mono text-pink-600 font-bold">0</span>
+                </div>
+                <input type="range" id="editOrderStudioContrast" min="-60" max="60" value="0" oninput="document.getElementById('valEditOrderStudioContrast').innerText = this.value; triggerEditOrderStudioChange()" class="w-full accent-pink-600">
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- RIGHT COLUMN: Print Command Controls & Printer Selection Dropdown -->
@@ -990,6 +1061,54 @@
     </div>
   </div>
 
+  <!-- Admin CamScanner Document & Photo Enhancer Modal -->
+  <div id="adminCamscanModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-3 hidden">
+    <div class="bg-white max-w-md w-full rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-200">
+      <div class="px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-700 text-white flex items-center justify-between">
+        <h3 class="font-bold text-sm flex items-center gap-2"><span>🎨</span> <span>CamScanner কোয়ালিটি ও স্ক্যান এনহ্যান্স</span></h3>
+        <button type="button" onclick="closeAdminCamscanModal()" class="text-white hover:opacity-80 text-2xl leading-none">&times;</button>
+      </div>
+      <div class="p-4 space-y-3 text-xs">
+        <p class="text-gray-600 font-medium">মোবাইলে তোলা ঝাপসা, অন্ধকার বা ছায়াযুক্ত ডকুমেন্ট ও ছবি পরিষ্কার করুন:</p>
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" id="btnAdminFxMagic" onclick="selectAdminCamscanFx('magic_color')" class="p-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-50 text-emerald-900 font-bold text-center flex flex-col items-center gap-1 shadow-sm">
+            <span class="text-lg">✨</span>
+            <span>ম্যাজিক ক্লিয়ার</span>
+            <span class="text-[10px] text-emerald-700 font-normal">ব্যাকগ্রাউন্ড সাদা ও টেক্সট স্পষ্ট</span>
+          </button>
+          <button type="button" id="btnAdminFxHd" onclick="selectAdminCamscanFx('hd_clear')" class="p-2.5 rounded-xl border border-gray-200 hover:border-emerald-500 font-bold text-center flex flex-col items-center gap-1">
+            <span class="text-lg">💎</span>
+            <span>HD ক্লিয়ার</span>
+            <span class="text-[10px] text-gray-500 font-normal">শার্প ও উজ্জ্বল ছবি</span>
+          </button>
+          <button type="button" id="btnAdminFxBw" onclick="selectAdminCamscanFx('bw_doc')" class="p-2.5 rounded-xl border border-gray-200 hover:border-emerald-500 font-bold text-center flex flex-col items-center gap-1">
+            <span class="text-lg">🖨️</span>
+            <span>সাদাকালো ডকুমেন্ট</span>
+            <span class="text-[10px] text-gray-500 font-normal">ফটোকপি স্টাইল ক্লিন সাদা-কালো</span>
+          </button>
+          <button type="button" id="btnAdminFxOrig" onclick="selectAdminCamscanFx('original')" class="p-2.5 rounded-xl border border-gray-200 hover:border-emerald-500 font-bold text-center flex flex-col items-center gap-1">
+            <span class="text-lg">🖼️</span>
+            <span>আসল ছবি</span>
+            <span class="text-[10px] text-gray-500 font-normal">কোনো ফিল্টার ছাড়া মূল ছবি</span>
+          </button>
+        </div>
+        <div id="adminCamscanAllPagesOption" class="hidden pt-2 border-t flex items-center justify-between">
+          <span class="font-bold text-gray-700">পিডিএফের ক্ষেত্রে:</span>
+          <label class="flex items-center gap-1.5 cursor-pointer font-bold text-emerald-700">
+            <input type="checkbox" id="adminCamscanApplyAll" class="rounded accent-emerald-600">
+            <span>সবগুলো পাতায় প্রয়োগ করুন</span>
+          </label>
+        </div>
+      </div>
+      <div class="p-3 bg-gray-50 border-t flex justify-end gap-2">
+        <button type="button" onclick="closeAdminCamscanModal()" class="px-4 py-2 border rounded-xl text-xs font-bold text-gray-600">বাতিল</button>
+        <button type="button" id="btnApplyAdminCamscan" onclick="applyAdminCamscanNow()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow flex items-center gap-1.5">
+          <span>✓</span> <span>প্রয়োগ ও সংরক্ষণ করুন</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Hidden iframe for direct browser printing when Windows Agent is offline -->
   <iframe id="browserPrintFrame" class="hidden w-0 h-0 border-0"></iframe>
 
@@ -1258,6 +1377,35 @@
       populateAllPrinterDropdowns(SHOP_PRINTERS, activePrinter);
       fetchLatestPrinters(activePrinter);
 
+      // Check if order is NID or Photo Studio or Document
+      let extra = {};
+      try { extra = JSON.parse(order.extra_data || '{}'); } catch(e) {}
+      const isNid = !!(extra.is_nid || order.paper_size === 'NID' || (order.file_path && order.file_path.includes('nid_')));
+      const isStudio = !!(extra.is_studio || order.paper_size === 'PHOTO' || (order.file_path && order.file_path.includes('studio_')));
+
+      const nidSec = document.getElementById('editOrderNidSection');
+      const studioSec = document.getElementById('editOrderStudioSection');
+      if (nidSec) nidSec.classList.toggle('hidden', !isNid);
+      if (studioSec) studioSec.classList.toggle('hidden', !isStudio);
+
+      if (isNid) {
+        const fImg = document.getElementById('editNidFrontImg');
+        const bImg = document.getElementById('editNidBackImg');
+        if (fImg) fImg.src = `/admin/order/${encodeURIComponent(order.id)}/sub-preview?side=front&t=${Date.now()}`;
+        if (bImg) bImg.src = `/admin/order/${encodeURIComponent(order.id)}/sub-preview?side=back&t=${Date.now()}`;
+        updateOrderNidFitBtnUI(extra.fit || 'cover');
+      } else if (isStudio) {
+        const sp = extra.studio || {};
+        editOrderStudioItems = Array.isArray(sp.items) && sp.items.length > 0
+          ? JSON.parse(JSON.stringify(sp.items))
+          : [{ preset: 'p4555', w: 45, h: 55, count: 6 }];
+        const bEl = document.getElementById('editOrderStudioBrightness');
+        const cEl = document.getElementById('editOrderStudioContrast');
+        if (bEl) { bEl.value = sp.brightness || 0; document.getElementById('valEditOrderStudioBrightness').innerText = sp.brightness || 0; }
+        if (cEl) { cEl.value = sp.contrast || 0; document.getElementById('valEditOrderStudioContrast').innerText = sp.contrast || 0; }
+        renderEditOrderStudioItems();
+      }
+
       document.getElementById('editOrderModal').classList.remove('hidden');
       refreshAdminEditPreview();
     }
@@ -1348,8 +1496,8 @@
           <a href="/admin/order/${o.id}/file" target="_blank" download class="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded font-bold text-xs inline-block transition" title="ফাইল ডাউনলোড">
             ⬇️
           </a>
-          <button type="button" data-order="${esc(JSON.stringify(o))}" onclick="openEditModal(JSON.parse(this.dataset.order))" class="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded font-bold text-xs transition" title="লাইভ প্রিভিউ ও কমান্ড এডিট করুন">
-            ✏️ প্রিভিউ ও এডিট
+          <button type="button" data-order="${esc(JSON.stringify(o))}" onclick="openEditModal(JSON.parse(this.dataset.order))" class="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded font-bold text-xs transition" title="লাইভ প্রিভিউ, ক্রপ ও স্ক্যান এডিট করুন">
+            ✏️ এডিট, ক্রপ ও স্ক্যান
           </button>
           <button onclick="approveOrder('${o.id}')" class="px-2.5 py-1 bg-green-600 hover:bg-green-700 text-white rounded font-bold text-xs transition">
             🖨️ প্রিন্ট অনুমোদন
@@ -2348,15 +2496,266 @@
     let adminActiveDragIdx = -1;
     let adminCropActiveRatio = 'free';
     let adminCropImgElement = new Image();
+    let adminCropNidSide = 'front';
+    let editOrderStudioItems = [];
+    let editOrderStudioTimer = null;
+    let currentAdminCamscanFx = 'magic_color';
 
     function openOrderCropModal() {
       if (!currentEditingOrderId) {
         alert('কোনো অর্ডার নির্বাচন করা নেই।');
         return;
       }
+      let extra = {};
+      try { extra = JSON.parse((currentEditingOrder && currentEditingOrder.extra_data) || '{}'); } catch(e) {}
+      if (extra.is_nid || (currentEditingOrder && currentEditingOrder.paper_size === 'NID') || (currentEditingOrder && currentEditingOrder.file_path && currentEditingOrder.file_path.includes('nid_'))) {
+        openOrderNidCrop('front');
+        return;
+      }
+      if (extra.is_studio || (currentEditingOrder && currentEditingOrder.paper_size === 'PHOTO') || (currentEditingOrder && currentEditingOrder.file_path && currentEditingOrder.file_path.includes('studio_'))) {
+        openOrderStudioCrop();
+        return;
+      }
       adminActiveCropTarget = 'order';
-      const imgUrl = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/preview?page=${editPreviewPage || 1}&t=${Date.now()}`;
+      const imgUrl = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?page=${editPreviewPage || 1}&t=${Date.now()}`;
       setupAndOpenAdminCropModal(imgUrl, 'order');
+    }
+
+    function openOrderNidCrop(side) {
+      if (!currentEditingOrderId) return;
+      adminActiveCropTarget = 'order_nid';
+      adminCropNidSide = side;
+      const imgUrl = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?side=${side}&t=${Date.now()}`;
+      setupAndOpenAdminCropModal(imgUrl, 'nid_' + side);
+    }
+
+    function openOrderStudioCrop() {
+      if (!currentEditingOrderId) return;
+      adminActiveCropTarget = 'order_studio';
+      const imgUrl = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?side=front&t=${Date.now()}`;
+      setupAndOpenAdminCropModal(imgUrl, 'studio');
+    }
+
+    async function rotateCurrentOrderPage() {
+      if (!currentEditingOrderId) return;
+      const page = editPreviewPage || 1;
+      try {
+        const res = await fetch(`/admin/order/${encodeURIComponent(currentEditingOrderId)}/rotate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ page: page, degrees: 90 })
+        });
+        const data = await res.json();
+        if (data.success) {
+          lastEditPreviewUrl = '';
+          refreshAdminEditPreview();
+        } else {
+          alert('ঘোরানো সম্ভব হয়নি: ' + (data.detail || ''));
+        }
+      } catch (e) {
+        alert('ত্রুটি: ' + e);
+      }
+    }
+
+    async function rotateOrderNid(side) {
+      if (!currentEditingOrderId) return;
+      try {
+        const res = await fetch(`/admin/order/${encodeURIComponent(currentEditingOrderId)}/rotate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ side: side, degrees: 90 })
+        });
+        const data = await res.json();
+        if (data.success) {
+          const img = document.getElementById(side === 'front' ? 'editNidFrontImg' : 'editNidBackImg');
+          if (img) img.src = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?side=${side}&t=${Date.now()}`;
+          lastEditPreviewUrl = '';
+          refreshAdminEditPreview();
+        }
+      } catch (e) {
+        alert('ত্রুটি: ' + e);
+      }
+    }
+
+    async function setOrderNidFit(fit) {
+      if (!currentEditingOrderId) return;
+      updateOrderNidFitBtnUI(fit);
+      const color = document.getElementById('editColorMode').value || 'bw';
+      try {
+        const res = await fetch(`/admin/order/${encodeURIComponent(currentEditingOrderId)}/update-nid`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fit: fit, color_mode: color })
+        });
+        const data = await res.json();
+        if (data.success) {
+          lastEditPreviewUrl = '';
+          refreshAdminEditPreview();
+        }
+      } catch (e) {
+        console.error('NID fit error:', e);
+      }
+    }
+
+    function updateOrderNidFitBtnUI(fit) {
+      const bCover = document.getElementById('btnEditNidFitCover');
+      const bContain = document.getElementById('btnEditNidFitContain');
+      if (bCover && bContain) {
+        bCover.className = fit === 'cover'
+          ? 'px-2 py-0.5 bg-pink-600 text-white rounded font-bold text-[10px]'
+          : 'px-2 py-0.5 bg-white border text-gray-700 rounded font-bold text-[10px]';
+        bContain.className = fit === 'contain'
+          ? 'px-2 py-0.5 bg-pink-600 text-white rounded font-bold text-[10px]'
+          : 'px-2 py-0.5 bg-white border text-gray-700 rounded font-bold text-[10px]';
+      }
+    }
+
+    function renderEditOrderStudioItems() {
+      const box = document.getElementById('editOrderStudioItemsContainer');
+      if (!box) return;
+      box.innerHTML = editOrderStudioItems.map((it, idx) => {
+        return `
+          <div class="p-1.5 bg-white border border-pink-200 rounded-lg flex items-center justify-between gap-1 text-[11px]">
+            <select onchange="editOrderStudioItems[${idx}].preset = this.value; const p = ADMIN_PRESETS.find(x => x.id === this.value); if (p) { editOrderStudioItems[${idx}].w = p.w; editOrderStudioItems[${idx}].h = p.h; } triggerEditOrderStudioChange()" class="flex-1 px-1.5 py-0.5 border rounded text-[11px] font-bold">
+              ${ADMIN_PRESETS.map(p => `<option value="${p.id}" ${p.id === it.preset ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
+            </select>
+            <div class="flex items-center gap-1">
+              <span class="text-gray-500">কপি:</span>
+              <input type="number" min="1" max="60" value="${it.count || 1}" onchange="editOrderStudioItems[${idx}].count = Math.max(1, parseInt(this.value, 10) || 1); triggerEditOrderStudioChange()" class="w-10 px-1 py-0.5 border rounded text-center font-bold text-[11px]">
+              ${editOrderStudioItems.length > 1 ? `<button type="button" onclick="editOrderStudioItems.splice(${idx}, 1); renderEditOrderStudioItems(); triggerEditOrderStudioChange()" class="text-red-500 font-bold px-1">&times;</button>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function addEditOrderStudioRow() {
+      editOrderStudioItems.push({ preset: 'stamp', w: 20, h: 25, count: 4 });
+      renderEditOrderStudioItems();
+      triggerEditOrderStudioChange();
+    }
+
+    function triggerEditOrderStudioChange() {
+      clearTimeout(editOrderStudioTimer);
+      editOrderStudioTimer = setTimeout(saveOrderStudioChanges, 300);
+    }
+
+    async function saveOrderStudioChanges() {
+      if (!currentEditingOrderId) return;
+      const paper = document.getElementById('editPaperSize').value === '4x6' ? '4x6' : 'A4';
+      const color = document.getElementById('editColorMode').value || 'color';
+      const brightness = parseInt(document.getElementById('editOrderStudioBrightness').value, 10) || 0;
+      const contrast = parseInt(document.getElementById('editOrderStudioContrast').value, 10) || 0;
+
+      const studioPayload = {
+        paper: paper,
+        bw: color === 'bw',
+        brightness: brightness,
+        contrast: contrast,
+        fill: 'cover',
+        border: 0.5,
+        items: editOrderStudioItems.map(it => ({
+          preset: it.preset,
+          w: it.w,
+          h: it.h,
+          count: it.count || 1,
+          photo_idx: 0
+        }))
+      };
+
+      try {
+        const res = await fetch(`/admin/order/${encodeURIComponent(currentEditingOrderId)}/update-studio`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ studio: studioPayload })
+        });
+        const data = await res.json();
+        if (data.success) {
+          if (data.total_price) {
+            document.getElementById('editTotalPrice').value = data.total_price;
+          }
+          lastEditPreviewUrl = '';
+          refreshAdminEditPreview();
+        }
+      } catch (e) {
+        console.error('Update studio error:', e);
+      }
+    }
+
+    function openAdminCamscanModal() {
+      if (!currentEditingOrderId) {
+        alert('কোনো অর্ডার নির্বাচন করা নেই।');
+        return;
+      }
+      const modal = document.getElementById('adminCamscanModal');
+      if (!modal) return;
+      modal.classList.remove('hidden');
+      selectAdminCamscanFx('magic_color');
+      const allPagesOpt = document.getElementById('adminCamscanAllPagesOption');
+      if (allPagesOpt) {
+        const maxP = Math.max(1, parseInt((currentEditingOrder && currentEditingOrder.page_count) || 1, 10));
+        allPagesOpt.classList.toggle('hidden', maxP <= 1);
+      }
+    }
+
+    function closeAdminCamscanModal() {
+      const modal = document.getElementById('adminCamscanModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function selectAdminCamscanFx(fx) {
+      currentAdminCamscanFx = fx;
+      const fxs = { magic_color: 'btnAdminFxMagic', hd_clear: 'btnAdminFxHd', bw_doc: 'btnAdminFxBw', original: 'btnAdminFxOrig' };
+      Object.keys(fxs).forEach(k => {
+        const el = document.getElementById(fxs[k]);
+        if (!el) return;
+        if (k === fx) {
+          el.className = 'p-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-50 text-emerald-900 font-bold text-center flex flex-col items-center gap-1 shadow-sm';
+        } else {
+          el.className = 'p-2.5 rounded-xl border border-gray-200 hover:border-emerald-500 font-bold text-center flex flex-col items-center gap-1';
+        }
+      });
+    }
+
+    async function applyAdminCamscanNow() {
+      if (!currentEditingOrderId) return;
+      const btn = document.getElementById('btnApplyAdminCamscan');
+      btn.disabled = true;
+      btn.innerHTML = '<span>⏳</span> <span>এনহ্যান্স হচ্ছে...</span>';
+
+      const applyAll = document.getElementById('adminCamscanApplyAll') ? document.getElementById('adminCamscanApplyAll').checked : false;
+      const page = editPreviewPage || 1;
+
+      try {
+        const res = await fetch(`/admin/order/${encodeURIComponent(currentEditingOrderId)}/camscan`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: currentAdminCamscanFx,
+            page: page,
+            all_pages: applyAll,
+            side: 'all'
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          closeAdminCamscanModal();
+          lastEditPreviewUrl = '';
+          refreshAdminEditPreview();
+          const fImg = document.getElementById('editNidFrontImg');
+          const bImg = document.getElementById('editNidBackImg');
+          if (fImg) fImg.src = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?side=front&t=${Date.now()}`;
+          if (bImg) bImg.src = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?side=back&t=${Date.now()}`;
+          alert('✓ CamScanner ক্লিয়ারিটি সফলভাবে প্রয়োগ করা হয়েছে!');
+        } else {
+          alert('প্রয়োগ ব্যর্থ হয়েছে: ' + (data.detail || ''));
+        }
+      } catch (e) {
+        alert('CamScan প্রয়োগে ত্রুটি: ' + e);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span>✓</span> <span>প্রয়োগ ও সংরক্ষণ করুন</span>';
+      }
     }
 
     function openAdminActiveCrop(target) {
@@ -2739,16 +3138,47 @@
 
         if (adminActiveCropTarget === 'order') {
           if (!currentEditingOrderId) throw new Error('কোনো অর্ডার আইডি পাওয়া যায়নি');
+          const page = editPreviewPage || 1;
           const res = await fetch(`/admin/order/${encodeURIComponent(currentEditingOrderId)}/save-crop`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ image_data: dataUrl })
+            body: JSON.stringify({ image_data: dataUrl, page: page })
           });
           const data = await res.json();
           if (!data.success) throw new Error(data.detail || 'ক্রপ সংরক্ষণ ব্যর্থ');
           closeAdminOrderCropModal();
+          lastEditPreviewUrl = '';
           refreshAdminEditPreview();
-          alert('✓ ছবি সফলভাবে ক্রপ ও সোজা করা হয়েছে!');
+          alert('✓ ডকুমেন্টের পাতা সফলভাবে ক্রপ ও সোজা করা হয়েছে!');
+        } else if (adminActiveCropTarget === 'order_nid') {
+          if (!currentEditingOrderId) throw new Error('কোনো অর্ডার আইডি পাওয়া যায়নি');
+          const side = adminCropNidSide || 'front';
+          const res = await fetch(`/admin/order/${encodeURIComponent(currentEditingOrderId)}/save-crop`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image_data: dataUrl, side: side })
+          });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.detail || 'ক্রপ সংরক্ষণ ব্যর্থ');
+          closeAdminOrderCropModal();
+          const img = document.getElementById(side === 'front' ? 'editNidFrontImg' : 'editNidBackImg');
+          if (img) img.src = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?side=${side}&t=${Date.now()}`;
+          lastEditPreviewUrl = '';
+          refreshAdminEditPreview();
+          alert('✓ NID কার্ড ক্রপ ও সোজা করা হয়েছে!');
+        } else if (adminActiveCropTarget === 'order_studio') {
+          if (!currentEditingOrderId) throw new Error('কোনো অর্ডার আইডি পাওয়া যায়নি');
+          const res = await fetch(`/admin/order/${encodeURIComponent(currentEditingOrderId)}/save-crop`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image_data: dataUrl, side: 'front' })
+          });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.detail || 'ক্রপ সংরক্ষণ ব্যর্থ');
+          closeAdminOrderCropModal();
+          lastEditPreviewUrl = '';
+          refreshAdminEditPreview();
+          alert('✓ ফটো সফলভাবে ক্রপ ও শিট আপডেট করা হয়েছে!');
         } else if (adminActiveCropTarget === 'studio') {
           resultCanvas.toBlob(blob => {
             const croppedFile = new File([blob], 'cropped_studio.jpg', { type: 'image/jpeg' });

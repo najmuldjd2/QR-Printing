@@ -900,6 +900,58 @@ async def edit_order_details(order_id: str, request: Request):
     return {"success": True, "updated": updates}
 
 
+@app.get("/admin/order/{order_id}/sub-preview")
+async def admin_get_order_sub_preview(order_id: str, request: Request, side: str = "front"):
+    shop = get_current_shop(request)
+    if not shop:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    order = db.get_order(order_id)
+    if not order or order["shop_id"] != shop["id"]:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    extra = {}
+    try:
+        extra = json.loads(order.get("extra_data") or "{}")
+    except Exception:
+        pass
+
+    target_path = None
+    if extra.get("is_nid") or order.get("paper_size") == "NID" or "nid_" in order["file_path"]:
+        token = extra.get("nid_token")
+        if not token and "nid_print_" in order["file_path"]:
+            token = order["file_path"].split("nid_print_")[1].split(".pdf")[0]
+        if token:
+            front, back = nid_paths(token)
+            target_path = back if side == "back" else front
+    elif extra.get("is_studio") or order.get("paper_size") == "PHOTO" or "studio_" in order["file_path"]:
+        src_name = extra.get("source_photo") or ""
+        p = os.path.join(UPLOAD_DIR, src_name) if src_name else None
+        if p and os.path.isfile(p):
+            target_path = p
+        else:
+            target_path = order["file_path"]
+    else:
+        target_path = order["file_path"]
+
+    if not target_path or not os.path.isfile(target_path):
+        target_path = order["file_path"]
+
+    ext = utils.get_ext(target_path)
+    if ext == "pdf":
+        import office_docs
+        page_num = max(1, int(request.query_params.get("page", 1) or 1))
+        im = office_docs.render_pdf_page_pil(target_path, page_num, dpi=160)
+        buf = io.BytesIO()
+        im.save(buf, "JPEG", quality=85)
+        return Response(content=buf.getvalue(), media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+    else:
+        with Image.open(target_path) as im:
+            im = ImageOps.exif_transpose(im).convert("RGB")
+            buf = io.BytesIO()
+            im.save(buf, "JPEG", quality=85)
+            return Response(content=buf.getvalue(), media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+
 @app.post("/admin/order/{order_id}/save-crop")
 async def admin_save_order_crop(order_id: str, request: Request):
     shop = get_current_shop(request)
@@ -911,9 +963,11 @@ async def admin_save_order_crop(order_id: str, request: Request):
 
     body = await request.json()
     image_data = body.get("image_data") or ""
+    side = body.get("side") or "front"
+    page = int(body.get("page") or 1)
+
     if not image_data:
         raise HTTPException(status_code=400, detail="No image data provided")
-
     if "," in image_data:
         image_data = image_data.split(",", 1)[1]
 
@@ -924,27 +978,351 @@ async def admin_save_order_crop(order_id: str, request: Request):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid image data: {e}")
 
+    extra = {}
+    try:
+        extra = json.loads(order.get("extra_data") or "{}")
+    except Exception:
+        pass
+
     orig_path = order["file_path"]
-    fid = uuid.uuid4().hex[:10]
-    new_filename = f"cropped_{fid}.jpg"
-    new_path = os.path.join(UPLOAD_DIR, new_filename)
 
-    im.save(new_path, "JPEG", quality=95)
-
-    if storage.is_r2_configured() and os.path.isfile(new_path):
-        await asyncio.to_thread(storage.upload_file_to_r2, new_path)
-
-    if orig_path != new_path and os.path.isfile(orig_path):
-        utils.secure_delete_file(orig_path)
-
-    db.update_order_details(order_id, {
-        "file_path": new_path,
-        "file_type": "image",
-        "page_count": 1
-    })
+    if extra.get("is_nid") or order.get("paper_size") == "NID" or "nid_" in orig_path:
+        token = extra.get("nid_token")
+        if not token and "nid_print_" in orig_path:
+            token = orig_path.split("nid_print_")[1].split(".pdf")[0]
+        if token:
+            front, back = nid_paths(token)
+            dest = back if side == "back" else front
+            im.save(dest, "JPEG", quality=95)
+            fit_mode = extra.get("fit", "cover")
+            rot_front = int(extra.get("rot_front", 0))
+            rot_back = int(extra.get("rot_back", 0))
+            color_mode = order.get("color_mode", "bw")
+            await asyncio.to_thread(
+                utils.save_nid_sheet, front, back, orig_path,
+                color_mode=color_mode,
+                fit_mode=fit_mode,
+                rot_front=rot_front,
+                rot_back=rot_back,
+                orientation=order.get("orientation", "portrait")
+            )
+            if storage.is_r2_configured() and os.path.isfile(orig_path):
+                await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
+    elif extra.get("is_studio") or order.get("paper_size") == "PHOTO" or "studio_" in orig_path:
+        src_name = extra.get("source_photo") or ""
+        src_path = os.path.join(UPLOAD_DIR, src_name) if src_name else None
+        if src_path and os.path.isfile(src_path):
+            im.save(src_path, "JPEG", quality=95)
+        sp = studio.sanitize_params(extra.get("studio"))
+        p_map = {order_id: (src_path or orig_path)}
+        sheet, _info = studio.render_sheet((src_path or orig_path), sp, dpi=300, photos_map=p_map)
+        studio.save_sheet_pdf(sheet, orig_path, 300)
+        if storage.is_r2_configured() and os.path.isfile(orig_path):
+            await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
+    elif order.get("file_type") == "pdf" and utils.get_ext(orig_path) == "pdf":
+        import office_docs
+        await asyncio.to_thread(office_docs.replace_pdf_page_pil, orig_path, page, im)
+        office_docs._clear_nup_caches_for(orig_path)
+        if storage.is_r2_configured() and os.path.isfile(orig_path):
+            await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
+    else:
+        fid = uuid.uuid4().hex[:10]
+        new_filename = f"cropped_{fid}.jpg"
+        new_path = os.path.join(UPLOAD_DIR, new_filename)
+        im.save(new_path, "JPEG", quality=95)
+        if storage.is_r2_configured() and os.path.isfile(new_path):
+            await asyncio.to_thread(storage.upload_file_to_r2, new_path)
+        if orig_path != new_path and os.path.isfile(orig_path):
+            utils.secure_delete_file(orig_path)
+        db.update_order_details(order_id, {
+            "file_path": new_path,
+            "file_type": "image",
+            "page_count": 1
+        })
 
     await manager.notify_admin(shop["id"], {"event": "ORDER_UPDATED", "order_id": order_id})
-    return {"success": True, "file_path": new_path}
+    return {"success": True}
+
+
+@app.post("/admin/order/{order_id}/rotate")
+async def admin_rotate_order_file(order_id: str, request: Request):
+    shop = get_current_shop(request)
+    if not shop:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    order = db.get_order(order_id)
+    if not order or order["shop_id"] != shop["id"]:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    body = await request.json()
+    side = body.get("side") or "front"
+    page = int(body.get("page") or 1)
+    degrees = int(body.get("degrees") or 90)
+
+    extra = {}
+    try:
+        extra = json.loads(order.get("extra_data") or "{}")
+    except Exception:
+        pass
+
+    orig_path = order["file_path"]
+
+    if extra.get("is_nid") or order.get("paper_size") == "NID" or "nid_" in orig_path:
+        token = extra.get("nid_token")
+        if not token and "nid_print_" in orig_path:
+            token = orig_path.split("nid_print_")[1].split(".pdf")[0]
+        if token:
+            front, back = nid_paths(token)
+            target = back if side == "back" else front
+            with Image.open(target) as im:
+                im = ImageOps.exif_transpose(im)
+                rot = im.rotate(-degrees, expand=True)
+                rot.save(target, "JPEG", quality=95)
+            fit_mode = extra.get("fit", "cover")
+            rot_front = int(extra.get("rot_front", 0))
+            rot_back = int(extra.get("rot_back", 0))
+            color_mode = order.get("color_mode", "bw")
+            await asyncio.to_thread(
+                utils.save_nid_sheet, front, back, orig_path,
+                color_mode=color_mode,
+                fit_mode=fit_mode,
+                rot_front=rot_front,
+                rot_back=rot_back,
+                orientation=order.get("orientation", "portrait")
+            )
+            if storage.is_r2_configured() and os.path.isfile(orig_path):
+                await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
+    elif extra.get("is_studio") or order.get("paper_size") == "PHOTO" or "studio_" in orig_path:
+        src_name = extra.get("source_photo") or ""
+        src_path = os.path.join(UPLOAD_DIR, src_name) if src_name else None
+        if src_path and os.path.isfile(src_path):
+            with Image.open(src_path) as im:
+                im = ImageOps.exif_transpose(im)
+                rot = im.rotate(-degrees, expand=True)
+                rot.save(src_path, "JPEG", quality=95)
+            sp = studio.sanitize_params(extra.get("studio"))
+            p_map = {order_id: src_path}
+            sheet, _info = studio.render_sheet(src_path, sp, dpi=300, photos_map=p_map)
+            studio.save_sheet_pdf(sheet, orig_path, 300)
+            if storage.is_r2_configured() and os.path.isfile(orig_path):
+                await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
+    elif order.get("file_type") == "pdf" and utils.get_ext(orig_path) == "pdf":
+        import pypdf
+        import office_docs
+        reader = pypdf.PdfReader(orig_path)
+        writer = pypdf.PdfWriter()
+        for idx, p in enumerate(reader.pages):
+            if idx + 1 == page or page == 0:
+                p.rotate(degrees)
+            writer.add_page(p)
+        temp_out = orig_path + ".rot.tmp"
+        with open(temp_out, "wb") as f_out:
+            writer.write(f_out)
+        os.replace(temp_out, orig_path)
+        office_docs._clear_nup_caches_for(orig_path)
+        if storage.is_r2_configured() and os.path.isfile(orig_path):
+            await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
+    else:
+        with Image.open(orig_path) as im:
+            im = ImageOps.exif_transpose(im)
+            rot = im.rotate(-degrees, expand=True)
+            rot.save(orig_path, "JPEG", quality=95)
+        if storage.is_r2_configured() and os.path.isfile(orig_path):
+            await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
+
+    await manager.notify_admin(shop["id"], {"event": "ORDER_UPDATED", "order_id": order_id})
+    return {"success": True}
+
+
+@app.post("/admin/order/{order_id}/camscan")
+async def admin_camscan_order_file(order_id: str, request: Request):
+    shop = get_current_shop(request)
+    if not shop:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    order = db.get_order(order_id)
+    if not order or order["shop_id"] != shop["id"]:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    body = await request.json()
+    mode = clean_choice(body.get("mode"), ("original", "magic_color", "bw_doc", "hd_clear", "grayscale"), "magic_color")
+    page = int(body.get("page") or 1)
+    all_pages = bool(body.get("all_pages", False))
+    side = body.get("side") or "front"
+    import image_fx
+    import office_docs
+
+    extra = {}
+    try:
+        extra = json.loads(order.get("extra_data") or "{}")
+    except Exception:
+        pass
+
+    orig_path = order["file_path"]
+
+    if extra.get("is_nid") or order.get("paper_size") == "NID" or "nid_" in orig_path:
+        token = extra.get("nid_token")
+        if not token and "nid_print_" in orig_path:
+            token = orig_path.split("nid_print_")[1].split(".pdf")[0]
+        if token:
+            front, back = nid_paths(token)
+            targets = [front, back] if side == "all" else [back if side == "back" else front]
+            for target in targets:
+                with Image.open(target) as im:
+                    im = ImageOps.exif_transpose(im).convert("RGB")
+                    enhanced = image_fx.camscanner_process(im, mode=mode)
+                    enhanced.save(target, "JPEG", quality=95)
+            fit_mode = extra.get("fit", "cover")
+            rot_front = int(extra.get("rot_front", 0))
+            rot_back = int(extra.get("rot_back", 0))
+            color_mode = order.get("color_mode", "bw")
+            await asyncio.to_thread(
+                utils.save_nid_sheet, front, back, orig_path,
+                color_mode=color_mode,
+                fit_mode=fit_mode,
+                rot_front=rot_front,
+                rot_back=rot_back,
+                orientation=order.get("orientation", "portrait")
+            )
+            if storage.is_r2_configured() and os.path.isfile(orig_path):
+                await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
+    elif extra.get("is_studio") or order.get("paper_size") == "PHOTO" or "studio_" in orig_path:
+        src_name = extra.get("source_photo") or ""
+        src_path = os.path.join(UPLOAD_DIR, src_name) if src_name else None
+        if src_path and os.path.isfile(src_path):
+            with Image.open(src_path) as im:
+                im = ImageOps.exif_transpose(im).convert("RGB")
+                enhanced = image_fx.camscanner_process(im, mode=mode)
+                enhanced.save(src_path, "JPEG", quality=95)
+            sp = studio.sanitize_params(extra.get("studio"))
+            p_map = {order_id: src_path}
+            sheet, _info = studio.render_sheet(src_path, sp, dpi=300, photos_map=p_map)
+            studio.save_sheet_pdf(sheet, orig_path, 300)
+            if storage.is_r2_configured() and os.path.isfile(orig_path):
+                await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
+    elif order.get("file_type") == "pdf" and utils.get_ext(orig_path) == "pdf":
+        if all_pages:
+            await asyncio.to_thread(office_docs.apply_camscan_to_all_pdf_pages, orig_path, orig_path, mode)
+        else:
+            im = await asyncio.to_thread(office_docs.render_pdf_page_pil, orig_path, page, 200)
+            im = await asyncio.to_thread(image_fx.camscanner_process, im, mode)
+            await asyncio.to_thread(office_docs.replace_pdf_page_pil, orig_path, page, im)
+        office_docs._clear_nup_caches_for(orig_path)
+        if storage.is_r2_configured() and os.path.isfile(orig_path):
+            await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
+    else:
+        with Image.open(orig_path) as im:
+            im = ImageOps.exif_transpose(im).convert("RGB")
+            enhanced = image_fx.camscanner_process(im, mode=mode)
+            enhanced.save(orig_path, "JPEG", quality=95)
+        if storage.is_r2_configured() and os.path.isfile(orig_path):
+            await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
+
+    await manager.notify_admin(shop["id"], {"event": "ORDER_UPDATED", "order_id": order_id})
+    return {"success": True}
+
+
+@app.post("/admin/order/{order_id}/update-nid")
+async def admin_update_order_nid(order_id: str, request: Request):
+    shop = get_current_shop(request)
+    if not shop:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    order = db.get_order(order_id)
+    if not order or order["shop_id"] != shop["id"]:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    body = await request.json()
+    fit = clean_choice(body.get("fit"), ("cover", "contain"), "cover")
+    color = clean_choice(body.get("color_mode"), ("color", "bw"), order.get("color_mode", "bw"))
+
+    extra = {}
+    try:
+        extra = json.loads(order.get("extra_data") or "{}")
+    except Exception:
+        pass
+
+    token = extra.get("nid_token")
+    if not token and "nid_print_" in order["file_path"]:
+        token = order["file_path"].split("nid_print_")[1].split(".pdf")[0]
+    front, back = nid_paths(token)
+    orig_path = order["file_path"]
+    await asyncio.to_thread(
+        utils.save_nid_sheet, front, back, orig_path,
+        color_mode=color,
+        fit_mode=fit,
+        rot_front=int(extra.get("rot_front", 0)),
+        rot_back=int(extra.get("rot_back", 0)),
+        orientation=order.get("orientation", "portrait")
+    )
+    extra["fit"] = fit
+    db.update_order_details(order_id, {
+        "color_mode": color,
+        "extra_data": json.dumps(extra)
+    })
+    if storage.is_r2_configured() and os.path.isfile(orig_path):
+        await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
+
+    await manager.notify_admin(shop["id"], {"event": "ORDER_UPDATED", "order_id": order_id})
+    return {"success": True}
+
+
+@app.post("/admin/order/{order_id}/update-studio")
+async def admin_update_order_studio(order_id: str, request: Request):
+    shop = get_current_shop(request)
+    if not shop:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    order = db.get_order(order_id)
+    if not order or order["shop_id"] != shop["id"]:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    body = await request.json()
+    sp = studio.sanitize_params(body.get("studio"))
+    extra = {}
+    try:
+        extra = json.loads(order.get("extra_data") or "{}")
+    except Exception:
+        pass
+
+    src_name = extra.get("source_photo") or ""
+    src_path = os.path.join(UPLOAD_DIR, src_name) if src_name else None
+    if not src_path or not os.path.isfile(src_path):
+        src_path = order["file_path"]
+
+    orig_path = order["file_path"]
+    p_map = {order_id: src_path}
+    sheet, _info = studio.render_sheet(src_path, sp, dpi=300, photos_map=p_map)
+    studio.save_sheet_pdf(sheet, orig_path, 300)
+
+    rate_passport = float(shop.get("rate_passport") or 5.0)
+    rate_stamp = float(shop.get("rate_stamp") or 2.0)
+    photo_items_cost = 0.0
+    for it in sp.get("items", []):
+        cnt = int(it.get("count", 0) or 0)
+        w = float(it.get("w", 0) or 0)
+        h = float(it.get("h", 0) or 0)
+        preset = str(it.get("preset", ""))
+        if preset == "stamp" or (w <= 25 and h <= 30):
+            photo_items_cost += cnt * rate_stamp
+        else:
+            photo_items_cost += cnt * rate_passport
+
+    copies = int(order.get("copies", 1))
+    if sp["paper"] == "4x6":
+        sheet_rate = float(shop.get("rate_photo_4x6") or 30.0)
+    else:
+        sheet_rate = float(shop.get("rate_bw_single") or 3.0) if sp["bw"] else float(shop.get("rate_photo_a4") or 40.0)
+    rate = photo_items_cost if photo_items_cost > 0 else sheet_rate
+    total_price = rate * copies
+
+    extra["studio"] = sp
+    db.update_order_details(order_id, {
+        "color_mode": "bw" if sp["bw"] else "color",
+        "total_price": round(total_price, 2),
+        "extra_data": json.dumps(extra)
+    })
+    if storage.is_r2_configured() and os.path.isfile(orig_path):
+        await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
+
+    await manager.notify_admin(shop["id"], {"event": "ORDER_UPDATED", "order_id": order_id})
+    return {"success": True, "total_price": total_price}
 
 @app.get("/admin/order/{order_id}/file")
 async def admin_download_order_file(order_id: str, request: Request, inline: int = 0, json_url: int = 0, local: int = 0):
@@ -1968,34 +2346,51 @@ async def customer_create_order(request: Request):
 
     order_id = f"QSP-{secrets.token_hex(3).upper()}"
     original_filename = utils.safe_filename(data.get("original_filename"), "document")
+    extra_data_dict = {}
 
     if paper_size == "NID":
         # Build the final A4 PDF: front + back at the exact 85.6 x 54 mm size
         token = file_id[4:] if file_id.startswith("nid_") else ""
         front, back = nid_paths(token)
         file_path = os.path.join(UPLOAD_DIR, f"nid_print_{token}.pdf")
+        fit_mode = clean_choice(data.get("nid_fit"), ("cover", "contain"), "cover")
+        rot_front = clean_rotation(data.get("nid_rot_front"))
+        rot_back = clean_rotation(data.get("nid_rot_back"))
         await asyncio.to_thread(
             utils.save_nid_sheet, front, back, file_path,
             color_mode=color_mode,
-            fit_mode=clean_choice(data.get("nid_fit"), ("cover", "contain"), "cover"),
-            rot_front=clean_rotation(data.get("nid_rot_front")),
-            rot_back=clean_rotation(data.get("nid_rot_back")),
+            fit_mode=fit_mode,
+            rot_front=rot_front,
+            rot_back=rot_back,
             orientation=orientation,
         )
-        utils.secure_delete_file(front)
-        utils.secure_delete_file(back)
         file_type, page_count = "pdf", 1
         original_filename = "NID_Card_Front_Back.pdf"
         rate = shop["rate_color_single"] if color_mode == "color" else shop["rate_bw_single"]
         total_price = rate * copies
         duplex = "single"
+        extra_data_dict = {
+            "is_nid": True,
+            "nid_token": token,
+            "fit": fit_mode,
+            "rot_front": rot_front,
+            "rot_back": rot_back
+        }
     elif paper_size == "PHOTO":
         # Photo Studio: passport / stamp / custom photos in rows on A4 or 4x6 paper
         src = resolve_upload(file_id)
         if utils.get_ext(src) not in ("jpg", "jpeg", "png"):
             raise HTTPException(status_code=400, detail="ফটো স্টুডিওতে শুধু ছবি ব্যবহার করা যাবে।")
         sp = studio.sanitize_params(data.get("studio"))
-        file_path = os.path.join(UPLOAD_DIR, f"studio_{os.path.splitext(file_id)[0]}.pdf")
+        fid_clean = os.path.splitext(file_id)[0]
+        file_path = os.path.join(UPLOAD_DIR, f"studio_{fid_clean}.pdf")
+
+        # Keep a preserved copy of the source photo for admin editing
+        src_backup = os.path.join(UPLOAD_DIR, f"studio_src_{fid_clean}.jpg")
+        try:
+            shutil.copy2(src, src_backup)
+        except Exception:
+            src_backup = src
 
         photos_map = {file_id: src}
         extra_photos = sp.get("photos") or []
@@ -2012,8 +2407,6 @@ async def customer_create_order(request: Request):
             studio.save_sheet_pdf(sheet, file_path, 300)
 
         await asyncio.to_thread(_build)
-        for p_to_clean in set(photos_map.values()):
-            utils.secure_delete_file(p_to_clean)
         file_type, page_count = "pdf", 1
         color_mode = "bw" if sp["bw"] else "color"
         duplex = "single"
@@ -2038,6 +2431,11 @@ async def customer_create_order(request: Request):
 
         rate = photo_items_cost if photo_items_cost > 0 else sheet_rate
         total_price = rate * copies
+        extra_data_dict = {
+            "is_studio": True,
+            "source_photo": os.path.basename(src_backup),
+            "studio": sp
+        }
     else:
         file_path = resolve_upload(file_id)
         file_type = "pdf" if utils.get_ext(file_path) == "pdf" else "image"
@@ -2118,7 +2516,8 @@ async def customer_create_order(request: Request):
         "total_price": round(total_price, 2),
         "payment_method": payment_method,
         "trx_id": re.sub(r"[^A-Za-z0-9]", "", str(data.get("trx_id", "")))[:30],
-        "status": "pending_payment"
+        "status": "pending_payment",
+        "extra_data": json.dumps(extra_data_dict) if extra_data_dict else ""
     }
 
     db.create_order(order_data)
