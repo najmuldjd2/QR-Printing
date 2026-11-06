@@ -163,10 +163,14 @@
                 <td class="px-5 py-4">
                   <span class="font-bold">{{ o.page_count }} পেজ</span> × {{ o.copies }} কপি
                   <div class="text-gray-500 text-[11px] mt-0.5">
-                    {% if o.color_mode == 'bw' %}
+                    {% set cust_color = o.customer_color_mode or o.color_mode or 'color' %}
+                    {% if cust_color == 'bw' %}
                       <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-700">সাদাকালো</span>
                     {% else %}
                       <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-pink-100 text-pink-700">কালার</span>
+                    {% endif %}
+                    {% if o.color_mode and o.color_mode != cust_color %}
+                      <span class="inline-block px-1 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 ml-1">এডিট: {{ "সাদাকালো" if o.color_mode == "bw" else "কালার" }}</span>
                     {% endif %}
                     • {{ "এক পিঠ" if o.duplex == "single" else "উভয় পিঠ" }} • 
                     {{ o.paper_size }} ({{ "Landscape" if o.orientation == "landscape" else "Portrait" }})
@@ -279,10 +283,14 @@
                 <td class="px-5 py-3.5">
                   <span class="font-bold">{{ o.page_count }} পেজ</span> × {{ o.copies }} কপি
                   <div class="text-gray-500 text-[11px] mt-0.5">
-                    {% if o.color_mode == 'bw' %}
+                    {% set cust_color = o.customer_color_mode or o.color_mode or 'color' %}
+                    {% if cust_color == 'bw' %}
                       <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-700">সাদাকালো</span>
                     {% else %}
                       <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-pink-100 text-pink-700">কালার</span>
+                    {% endif %}
+                    {% if o.color_mode and o.color_mode != cust_color %}
+                      <span class="inline-block px-1 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 ml-1">এডিট: {{ "সাদাকালো" if o.color_mode == "bw" else "কালার" }}</span>
                     {% endif %}
                     • {{ "এক পিঠ" if o.duplex == "single" else "উভয় পিঠ" }} • 
                     {{ o.paper_size }} ({{ "Landscape" if o.orientation == "landscape" else "Portrait" }})
@@ -629,7 +637,10 @@
               <input type="number" id="editCopies" min="1" max="100" oninput="refreshAdminEditPreview()" class="w-full px-3 py-2 border rounded-lg text-sm font-bold">
             </div>
             <div>
-              <label class="block font-semibold text-gray-600 mb-1">কালার মোড (কালার/B&W)</label>
+              <div class="flex items-center justify-between mb-1">
+                <label class="block font-semibold text-gray-600">কালার মোড</label>
+                <span id="editModalCustomerColorBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700"></span>
+              </div>
               <select id="editColorMode" onchange="refreshAdminEditPreview()" class="w-full px-3 py-2 border rounded-lg text-sm bg-white font-bold">
                 <option value="color">কালার (Color)</option>
                 <option value="bw">সাদাকালো (B&W)</option>
@@ -1284,6 +1295,55 @@
       }
     }
 
+    function getOrderData(orderId) {
+      if (currentEditingOrder && String(currentEditingOrder.id) === String(orderId)) {
+        return currentEditingOrder;
+      }
+      const rowBtn = document.querySelector(`#row-${orderId} button[data-order]`);
+      if (rowBtn && rowBtn.dataset.order) {
+        try { return JSON.parse(rowBtn.dataset.order); } catch (e) {}
+      }
+      return null;
+    }
+
+    function checkColorModeConflict(order, targetColorMode, chosenPrinterName = '') {
+      if (!order) return true;
+      let extra = {};
+      try {
+        extra = typeof order.extra_data === 'string' ? JSON.parse(order.extra_data || '{}') : (order.extra_data || {});
+      } catch (e) {}
+
+      const customerReq = order.customer_color_mode || extra.customer_color_mode || order.color_mode || 'color';
+      let effectivePrintMode = targetColorMode || order.color_mode || 'color';
+
+      if (chosenPrinterName && Array.isArray(SHOP_PRINTERS)) {
+        const pInfo = SHOP_PRINTERS.find(p => p.printer_name === chosenPrinterName);
+        if (pInfo && pInfo.printer_type === 'bw') {
+          effectivePrintMode = 'bw';
+        } else if (pInfo && pInfo.printer_type === 'color') {
+          effectivePrintMode = 'color';
+        }
+      }
+
+      if (customerReq === 'color' && effectivePrintMode === 'bw') {
+        return confirm(
+          '⚠️ প্রিন্ট মোড সতর্কতা:\n\n' +
+          'কাস্টমার "রঙিন (Color)" প্রিন্ট রিকোয়েস্ট করেছেন,\n' +
+          'কিন্তু আপনি "সাদাকালো (B&W)" প্রিন্ট দিতে যাচ্ছেন!\n\n' +
+          'আপনি কি নিশ্চিতভাবেই এটি সাদাকালো প্রিন্ট করতে চান?'
+        );
+      } else if (customerReq === 'bw' && effectivePrintMode === 'color') {
+        return confirm(
+          '⚠️ প্রিন্ট মোড সতর্কতা:\n\n' +
+          'কাস্টমার "সাদাকালো (B&W)" প্রিন্ট রিকোয়েস্ট করেছেন,\n' +
+          'কিন্তু আপনি "রঙিন (Color)" প্রিন্ট দিতে যাচ্ছেন!\n\n' +
+          'আপনি কি নিশ্চিতভাবেই এটি রঙিন প্রিন্ট করতে চান?'
+        );
+      }
+
+      return true;
+    }
+
     async function quickUpdatePrinter(orderId, printerName) {
       try {
         await fetch(`/admin/order/${orderId}/update`, {
@@ -1405,6 +1465,12 @@
       // Check if order is NID or Photo Studio or Document
       let extra = {};
       try { extra = JSON.parse(order.extra_data || '{}'); } catch(e) {}
+      const custColor = order.customer_color_mode || (extra && extra.customer_color_mode) || order.color_mode || 'color';
+      const custBadge = document.getElementById('editModalCustomerColorBadge');
+      if (custBadge) {
+        custBadge.innerText = `কাস্টমার রিকোয়েস্ট: ${custColor === 'bw' ? 'সাদাকালো' : 'রঙিন'}`;
+        custBadge.className = `text-[10px] font-bold px-2 py-0.5 rounded-full ${custColor === 'bw' ? 'bg-gray-100 text-gray-700 border border-gray-300' : 'bg-pink-100 text-pink-700 border border-pink-300'}`;
+      }
       const isNid = !!(extra.is_nid || order.paper_size === 'NID' || (order.file_path && order.file_path.includes('nid_')));
       const isStudio = !!(extra.is_studio || order.paper_size === 'PHOTO' || (order.file_path && order.file_path.includes('studio_')));
 
@@ -1461,6 +1527,12 @@
         total_price: parseFloat(document.getElementById('editTotalPrice').value) || 0,
         printer_target: document.getElementById('editPrinterTarget').value.trim()
       };
+
+      if (andApprove) {
+        if (!checkColorModeConflict(currentEditingOrder, payload.color_mode, payload.printer_target)) {
+          return;
+        }
+      }
       try {
         const res = await fetch(`/admin/order/${targetOrderId}/update`, {
           method: 'POST',
@@ -1506,9 +1578,12 @@
         <td class="px-6 py-4">
           <span class="font-bold">${o.page_count} পেজ</span> × ${o.copies} কপি
           <div class="text-gray-500 text-[11px] mt-0.5">
-            ${o.color_mode === 'bw' 
+            ${(o.customer_color_mode || o.color_mode) === 'bw' 
               ? '<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-700">সাদাকালো</span>' 
-              : '<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-pink-100 text-pink-700">কালার</span>'} • 
+              : '<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-pink-100 text-pink-700">কালার</span>'}
+            ${(o.color_mode && o.customer_color_mode && o.color_mode !== o.customer_color_mode)
+              ? `<span class="inline-block px-1 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200 ml-1">এডিট: ${o.color_mode === 'bw' ? 'সাদাকালো' : 'কালার'}</span>`
+              : ''} • 
             ${o.duplex === 'single' ? 'এক পিঠ' : 'উভয় পিঠ'} • 
             ${esc(o.paper_size)} (${o.orientation === 'landscape' ? 'Landscape' : 'Portrait'})
           </div>
@@ -1546,11 +1621,16 @@
     // Direct Clean Browser Print (Zero headers/footers, no Render URL path on paper)
     async function printOrderInBrowser(orderId) {
       try {
-        // Find order metadata from row button if available
-        let orderMeta = {};
-        const rowBtn = document.querySelector(`#row-${orderId} button[data-order]`);
-        if (rowBtn && rowBtn.dataset.order) {
-          try { orderMeta = JSON.parse(rowBtn.dataset.order); } catch (e) {}
+        // Find order metadata
+        let orderMeta = getOrderData(orderId) || {};
+        const rowSel = document.getElementById(`rowPrinter-${orderId}`);
+        const chosenPrinter = rowSel ? rowSel.value : '';
+        const printColor = (currentEditingOrder && String(currentEditingOrder.id) === String(orderId))
+          ? document.getElementById('editColorMode').value
+          : (orderMeta.color_mode || 'color');
+
+        if (!checkColorModeConflict(orderMeta, printColor, chosenPrinter)) {
+          return;
         }
 
         // 1. Get direct Cloudflare R2 URL (0 Render bandwidth) with safe local fallback
@@ -1789,9 +1869,18 @@
     }
 
     async function approveOrder(orderId, skipConfirm = false, overridePrinter = null) {
-      if (!skipConfirm && !confirm('আপনি কি এই অর্ডারটি প্রিন্ট করার অনুমোদন দিতে চান?')) return;
+      const order = getOrderData(orderId);
       const rowSel = document.getElementById(`rowPrinter-${orderId}`);
       const chosenPrinter = overridePrinter !== null ? overridePrinter : (rowSel ? rowSel.value : '');
+      const printColor = (currentEditingOrder && String(currentEditingOrder.id) === String(orderId))
+        ? document.getElementById('editColorMode').value
+        : (order ? order.color_mode : 'color');
+
+      if (!checkColorModeConflict(order, printColor, chosenPrinter)) {
+        return;
+      }
+
+      if (!skipConfirm && !confirm('আপনি কি এই অর্ডারটি প্রিন্ট করার অনুমোদন দিতে চান?')) return;
       try {
         const res = await fetch(`/admin/order/${orderId}/approve`, {
           method: 'POST',

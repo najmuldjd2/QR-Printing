@@ -2371,11 +2371,16 @@ async def customer_create_order(request: Request):
         copies = max(1, min(int(data.get("copies", 1)), 100))
     except (TypeError, ValueError):
         copies = 1
-    # All customer submissions (document, NID, photo) arrive to admin in full color mode by default.
-    # Admin can edit, crop, camscan, and change color mode in the admin panel before printing.
-    color_mode = "color"
-    duplex = clean_choice(data.get("duplex"), ("single", "double"), "single")
+
     paper_size = clean_choice(data.get("paper_size"), ("A4", "4x6", "NID", "PHOTO"), "A4")
+    # Customer requested color mode (from client selection)
+    if paper_size == "PHOTO" and data.get("studio", {}).get("bw"):
+        customer_req_color = "bw"
+    else:
+        customer_req_color = clean_choice(data.get("color_mode"), ("bw", "color"), "color")
+
+    color_mode = customer_req_color
+    duplex = clean_choice(data.get("duplex"), ("single", "double"), "single")
     orientation = clean_choice(data.get("orientation"), ("portrait", "landscape"), "portrait")
     payment_method = clean_choice(data.get("payment_method"), ("counter_cash", "bkash", "nagad"), "counter_cash")
     try:
@@ -2415,7 +2420,8 @@ async def customer_create_order(request: Request):
             "nid_token": token,
             "fit": fit_mode,
             "rot_front": rot_front,
-            "rot_back": rot_back
+            "rot_back": rot_back,
+            "customer_color_mode": customer_req_color
         }
     elif paper_size == "PHOTO":
         # Photo Studio: passport / stamp / custom photos in rows on A4 or 4x6 paper
@@ -2476,7 +2482,8 @@ async def customer_create_order(request: Request):
         extra_data_dict = {
             "is_studio": True,
             "source_photo": os.path.basename(src_backup),
-            "studio": sp
+            "studio": sp,
+            "customer_color_mode": customer_req_color
         }
     else:
         file_path = resolve_upload(file_id)
@@ -2534,6 +2541,8 @@ async def customer_create_order(request: Request):
             else:
                 rate = shop["rate_color_double"] if duplex == "double" else shop["rate_color_single"]
             total_price = rate * page_count * copies
+            if "customer_color_mode" not in extra_data_dict:
+                extra_data_dict["customer_color_mode"] = customer_req_color
 
     # Sync printable order file to Cloudflare R2 (so downloads/prints use 0 Render egress bandwidth)
     if storage.is_r2_configured() and os.path.isfile(file_path):
@@ -2550,6 +2559,7 @@ async def customer_create_order(request: Request):
         "page_count": page_count,
         "copies": copies,
         "color_mode": color_mode,
+        "customer_color_mode": customer_req_color,
         "paper_size": paper_size,
         "duplex": duplex,
         "page_range": "all",
@@ -2619,6 +2629,7 @@ async def customer_get_orders_status(ids: str = ""):
                 "page_count": o.get("page_count") or 1,
                 "copies": o.get("copies") or 1,
                 "color_mode": o.get("color_mode") or "color",
+                "customer_color_mode": o.get("customer_color_mode") or o.get("color_mode") or "color",
                 "paper_size": o.get("paper_size") or "A4",
                 "total_price": o.get("total_price") or 0,
                 "payment_method": o.get("payment_method") or "counter_cash",
