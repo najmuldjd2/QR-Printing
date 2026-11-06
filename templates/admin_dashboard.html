@@ -603,9 +603,14 @@
               </div>
             </div>
             <div id="editOrderStudioItemsContainer" class="space-y-1.5 max-h-56 overflow-y-auto pr-0.5"></div>
-            <button type="button" onclick="addEditOrderStudioRow()" class="w-full py-1.5 border-2 border-dashed border-pink-400 text-pink-700 bg-white rounded-xl text-xs font-bold hover:bg-pink-50 transition flex items-center justify-center gap-1">
-              <span>➕</span> <span>আরো সাইজ যোগ করুন</span>
-            </button>
+            <div class="grid grid-cols-2 gap-1.5">
+              <button type="button" onclick="addEditOrderStudioRow(false)" class="w-full py-1.5 border-2 border-dashed border-pink-400 text-pink-700 bg-white rounded-xl text-xs font-bold hover:bg-pink-50 transition flex items-center justify-center gap-1" title="স্ট্যান্ডার্ড সাইজ যোগ করুন">
+                <span>➕</span> <span>আরো সাইজ</span>
+              </button>
+              <button type="button" onclick="addEditOrderStudioRow(true)" class="w-full py-1.5 border-2 border-dashed border-indigo-400 text-indigo-700 bg-white rounded-xl text-xs font-bold hover:bg-indigo-50 transition flex items-center justify-center gap-1" title="ইঞ্চি, px বা মিমি দিয়ে নিজের সাইজ তৈরি করুন">
+                <span>📐</span> <span>কাস্টম মাপ</span>
+              </button>
+            </div>
             <div class="grid grid-cols-2 gap-2 pt-1 border-t border-pink-200 text-[10px]">
               <div>
                 <div class="flex justify-between font-semibold text-gray-600">
@@ -1558,9 +1563,12 @@
           ? JSON.parse(JSON.stringify(sp.items))
           : [{ preset: 'p4555', w: 45, h: 55, count: 6 }]
         ).map(it => {
-          const matchedPreset = ADMIN_PRESETS.find(p => p.id === it.preset);
           const w = parseFloat(it.w) || 45;
           const h = parseFloat(it.h) || 55;
+          let matchedPreset = ADMIN_PRESETS.find(p => p.id === it.preset);
+          if (!matchedPreset) {
+            matchedPreset = ADMIN_PRESETS.find(p => p.id !== 'custom' && Math.abs(p.w - w) <= 1.5 && Math.abs(p.h - h) <= 1.5);
+          }
           const presetId = matchedPreset ? matchedPreset.id : 'custom';
           return {
             preset: presetId,
@@ -1785,7 +1793,7 @@
           // Image print: strict @page { margin: 0mm !important } guarantees NO browser header/footer/URL on paper
           const orient = (orderMeta.orientation === 'landscape') ? 'landscape' : 'portrait';
           const paper = (orderMeta.paper_size === '4x6') ? '4in 6in' : `A4 ${orient}`;
-          const bwFilter = (orderMeta.color_mode === 'bw') ? 'filter: grayscale(100%);' : '';
+          const bwFilter = (printColor === 'bw') ? 'filter: grayscale(100%);' : '';
 
           document.title = ' ';
           const doc = frame.contentWindow.document;
@@ -2500,7 +2508,7 @@
           bw: color === 'bw',
           brightness: brightness,
           contrast: contrast,
-          fill: 'cover',
+          fill: false,
           border: 0.5,
           photos: [adminStudioFileId],
           items: adminStudioItems.map(it => ({
@@ -2567,7 +2575,7 @@
           bw: color === 'bw',
           brightness: brightness,
           contrast: contrast,
-          fill: 'cover',
+          fill: false,
           border: 0.5,
           photos: [adminStudioFileId],
           items: adminStudioItems.map(it => ({
@@ -2895,16 +2903,28 @@
       triggerEditOrderStudioChange();
     }
 
-    function addEditOrderStudioRow() {
-      editOrderStudioItems.push({
-        preset: 'stamp',
-        w: 20,
-        h: 25,
-        count: 4,
-        unit: 'inch',
-        custom_w: 0.79,
-        custom_h: 0.98
-      });
+    function addEditOrderStudioRow(isCustom = false) {
+      if (isCustom) {
+        editOrderStudioItems.push({
+          preset: 'custom',
+          w: 50.8,
+          h: 152.4,
+          count: 1,
+          unit: 'inch',
+          custom_w: 2,
+          custom_h: 6
+        });
+      } else {
+        editOrderStudioItems.push({
+          preset: 'stamp',
+          w: 20,
+          h: 25,
+          count: 4,
+          unit: 'inch',
+          custom_w: 0.79,
+          custom_h: 0.98
+        });
+      }
       renderEditOrderStudioItems();
       triggerEditOrderStudioChange();
     }
@@ -2998,7 +3018,7 @@
         bw: color === 'bw',
         brightness: brightness,
         contrast: contrast,
-        fill: 'cover',
+        fill: false,
         border: 0.5,
         items: editOrderStudioItems.map(it => ({
           preset: it.preset || 'p4555',
@@ -3888,10 +3908,13 @@
           });
           const data = await res.json();
           if (!data.success) throw new Error(data.detail || 'ক্রপ সংরক্ষণ ব্যর্থ');
+          if (data.file_path && currentEditingOrder) {
+            currentEditingOrder.file_path = data.file_path;
+          }
           editModalHasChanges = true;
           closeAdminOrderCropModal();
           lastEditPreviewUrl = '';
-          refreshAdminEditPreview();
+          refreshAdminEditPreview(true);
           showAdminToast('✓ ডকুমেন্টের পাতা সফলভাবে ক্রপ ও সোজা করা হয়েছে!');
         } else if (adminActiveCropTarget === 'order_nid') {
           if (!currentEditingOrderId) throw new Error('কোনো অর্ডার আইডি পাওয়া যায়নি');
@@ -3903,6 +3926,9 @@
           });
           const data = await res.json();
           if (!data.success) throw new Error(data.detail || 'ক্রপ সংরক্ষণ ব্যর্থ');
+          if (data.file_path && currentEditingOrder) {
+            currentEditingOrder.file_path = data.file_path;
+          }
           editModalHasChanges = true;
           closeAdminOrderCropModal();
           const img = document.getElementById(side === 'front' ? 'editNidFrontImg' : 'editNidBackImg');
@@ -3919,6 +3945,9 @@
           });
           const data = await res.json();
           if (!data.success) throw new Error(data.detail || 'ক্রপ সংরক্ষণ ব্যর্থ');
+          if (data.file_path && currentEditingOrder) {
+            currentEditingOrder.file_path = data.file_path;
+          }
           editModalHasChanges = true;
           closeAdminOrderCropModal();
           lastEditPreviewUrl = '';

@@ -1022,6 +1022,83 @@ def ensure_order_pristine_backup(order: dict):
         except Exception:
             pass
 
+    if storage.is_r2_configured():
+        for k in ("pristine_path", "pristine_photo", "pristine_front", "pristine_back"):
+            fp = extra.get(k)
+            if fp and os.path.isfile(fp):
+                try:
+                    storage.upload_file_to_r2(fp)
+                except Exception:
+                    pass
+
+
+def resolve_studio_source_path(order: dict, extra: dict) -> str:
+    """Finds or recovers the source image for a photo studio order."""
+    orig_path = order.get("file_path") or ""
+
+    # 1. source_photo in extra
+    src_name = extra.get("source_photo") or ""
+    if src_name:
+        cand = os.path.join(UPLOAD_DIR, src_name)
+        if not os.path.isfile(cand) and storage.is_r2_configured():
+            storage.ensure_local_from_r2(cand)
+        if os.path.isfile(cand):
+            return cand
+
+    # 2. pristine_photo in extra
+    p_photo = extra.get("pristine_photo") or ""
+    if p_photo:
+        if not os.path.isfile(p_photo) and storage.is_r2_configured():
+            storage.ensure_local_from_r2(p_photo)
+        if os.path.isfile(p_photo):
+            return p_photo
+
+    # 3. Check for any file on disk matching studio_src_
+    clean_id = os.path.splitext(os.path.basename(orig_path))[0].replace("studio_", "")
+    for pfx in ("studio_src_", "pristine_studio_src_", "upload_"):
+        for ext in (".jpg", ".jpeg", ".png"):
+            cand = os.path.join(UPLOAD_DIR, f"{pfx}{clean_id}{ext}")
+            if not os.path.isfile(cand) and storage.is_r2_configured():
+                storage.ensure_local_from_r2(cand)
+            if os.path.isfile(cand):
+                return cand
+
+    # 4. If orig_path is already an image
+    if orig_path and utils.get_ext(orig_path) in ("jpg", "jpeg", "png"):
+        if not os.path.isfile(orig_path) and storage.is_r2_configured():
+            storage.ensure_local_from_r2(orig_path)
+        if os.path.isfile(orig_path):
+            return orig_path
+
+    # 5. If orig_path is PDF, extract embedded image or render page 0
+    if orig_path and utils.get_ext(orig_path) == "pdf":
+        if not os.path.isfile(orig_path) and storage.is_r2_configured():
+            storage.ensure_local_from_r2(orig_path)
+        if os.path.isfile(orig_path):
+            extracted = os.path.join(UPLOAD_DIR, f"extracted_src_{clean_id}.jpg")
+            if os.path.isfile(extracted):
+                return extracted
+            try:
+                import pypdf
+                reader = pypdf.PdfReader(orig_path)
+                for page in reader.pages:
+                    for img_obj in page.images:
+                        with open(extracted, "wb") as f:
+                            f.write(img_obj.data)
+                        return extracted
+            except Exception:
+                pass
+            if utils.PDF_RENDER_AVAILABLE:
+                try:
+                    img_data = utils.render_pdf_page_preview(orig_path, 0, "color", dpi=150)
+                    with open(extracted, "wb") as f:
+                        f.write(img_data)
+                    return extracted
+                except Exception:
+                    pass
+
+    return orig_path
+
 
 @app.get("/admin/order/{order_id}/sub-preview")
 async def admin_get_order_sub_preview(order_id: str, request: Request, side: str = "front"):
@@ -1055,17 +1132,14 @@ async def admin_get_order_sub_preview(order_id: str, request: Request, side: str
                 target_path = back if side == "back" else front
     elif extra.get("is_studio") or order.get("paper_size") == "PHOTO" or "studio_" in order["file_path"]:
         src_name = extra.get("source_photo") or ""
-        p = os.path.join(UPLOAD_DIR, src_name) if src_name else None
         if pristine and src_name:
             p_photo = os.path.join(UPLOAD_DIR, f"pristine_{src_name}")
             if os.path.isfile(p_photo):
                 target_path = p_photo
-            elif p and os.path.isfile(p):
-                target_path = p
-        elif p and os.path.isfile(p):
-            target_path = p
+            else:
+                target_path = resolve_studio_source_path(order, extra)
         else:
-            target_path = order["file_path"]
+            target_path = resolve_studio_source_path(order, extra)
     else:
         orig = order["file_path"]
         if pristine:
@@ -1152,10 +1226,11 @@ async def admin_save_order_crop(order_id: str, request: Request):
             if storage.is_r2_configured() and os.path.isfile(orig_path):
                 await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
     elif extra.get("is_studio") or order.get("paper_size") == "PHOTO" or "studio_" in orig_path:
-        src_name = extra.get("source_photo") or ""
-        src_path = os.path.join(UPLOAD_DIR, src_name) if src_name else None
+        src_path = resolve_studio_source_path(order, extra)
         if src_path and os.path.isfile(src_path):
             im.save(src_path, "JPEG", quality=95)
+            if storage.is_r2_configured():
+                await asyncio.to_thread(storage.upload_file_to_r2, src_path)
         sp = studio.sanitize_params(extra.get("studio"))
         p_map = {order_id: (src_path or orig_path)}
         sheet, _info = studio.render_sheet((src_path or orig_path), sp, dpi=300, photos_map=p_map)
@@ -1187,7 +1262,7 @@ async def admin_save_order_crop(order_id: str, request: Request):
         })
 
     await manager.notify_admin(shop["id"], {"event": "ORDER_UPDATED", "order_id": order_id})
-    return {"success": True}
+    return {"success": True, "file_path": new_path if 'new_path' in locals() else orig_path}
 
 
 @app.post("/admin/order/{order_id}/rotate")
@@ -1343,10 +1418,10 @@ async def admin_camscan_order_file(order_id: str, request: Request):
             if storage.is_r2_configured() and os.path.isfile(orig_path):
                 await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
     elif extra.get("is_studio") or order.get("paper_size") == "PHOTO" or "studio_" in orig_path:
-        src_name = extra.get("source_photo") or ""
-        src_path = os.path.join(UPLOAD_DIR, src_name) if src_name else None
+        src_path = resolve_studio_source_path(order, extra)
         if src_path and os.path.isfile(src_path):
-            p_photo = os.path.join(UPLOAD_DIR, f"pristine_{src_name}")
+            src_name = extra.get("source_photo") or os.path.basename(src_path)
+            p_photo = extra.get("pristine_photo") or os.path.join(UPLOAD_DIR, f"pristine_{src_name}")
             src_to_read = p_photo if os.path.isfile(p_photo) else src_path
             if mode == "original":
                 if os.path.isfile(p_photo) and p_photo != src_path:
@@ -1356,6 +1431,8 @@ async def admin_camscan_order_file(order_id: str, request: Request):
                     im = ImageOps.exif_transpose(im).convert("RGB")
                     enhanced = image_fx.camscanner_process(im, mode=mode)
                     enhanced.save(src_path, "JPEG", quality=95)
+            if storage.is_r2_configured():
+                await asyncio.to_thread(storage.upload_file_to_r2, src_path)
             sp = studio.sanitize_params(extra.get("studio"))
             p_map = {order_id: src_path}
             sheet, _info = studio.render_sheet(src_path, sp, dpi=300, photos_map=p_map)
@@ -1569,12 +1646,11 @@ async def admin_update_order_studio(order_id: str, request: Request):
     except Exception:
         pass
 
-    src_name = extra.get("source_photo") or ""
-    src_path = os.path.join(UPLOAD_DIR, src_name) if src_name else None
-    if not src_path or not os.path.isfile(src_path):
-        src_path = order["file_path"]
-
     orig_path = order["file_path"]
+    src_path = resolve_studio_source_path(order, extra)
+    if not src_path or not os.path.isfile(src_path):
+        src_path = orig_path
+
     p_map = {order_id: src_path}
     sheet, _info = studio.render_sheet(src_path, sp, dpi=300, photos_map=p_map)
     studio.save_sheet_pdf(sheet, orig_path, 300)
@@ -2645,7 +2721,7 @@ async def customer_create_order(request: Request):
     else:
         customer_req_color = clean_choice(data.get("color_mode"), ("bw", "color"), "color")
 
-    color_mode = customer_req_color
+    color_mode = "color"
     duplex = clean_choice(data.get("duplex"), ("single", "double"), "single")
     orientation = clean_choice(data.get("orientation"), ("portrait", "landscape"), "portrait")
     payment_method = clean_choice(data.get("payment_method"), ("counter_cash", "bkash", "nagad"), "counter_cash")
@@ -2670,7 +2746,7 @@ async def customer_create_order(request: Request):
         rot_back = clean_rotation(data.get("nid_rot_back"))
         await asyncio.to_thread(
             utils.save_nid_sheet, front, back, file_path,
-            color_mode=color_mode,
+            color_mode="color",
             fit_mode=fit_mode,
             rot_front=rot_front,
             rot_back=rot_back,
@@ -2678,7 +2754,7 @@ async def customer_create_order(request: Request):
         )
         file_type, page_count = "pdf", 1
         original_filename = "NID_Card_Front_Back.pdf"
-        rate = shop["rate_color_single"] if color_mode == "color" else shop["rate_bw_single"]
+        rate = shop["rate_bw_single"] if customer_req_color == "bw" else shop["rate_color_single"]
         total_price = rate * copies
         duplex = "single"
         extra_data_dict = {
@@ -2689,6 +2765,11 @@ async def customer_create_order(request: Request):
             "rot_back": rot_back,
             "customer_color_mode": customer_req_color
         }
+        if storage.is_r2_configured():
+            if os.path.isfile(front):
+                await asyncio.to_thread(storage.upload_file_to_r2, front)
+            if os.path.isfile(back):
+                await asyncio.to_thread(storage.upload_file_to_r2, back)
     elif paper_size == "PHOTO":
         # Photo Studio: passport / stamp / custom photos in rows on A4 or 4x6 paper
         src = resolve_upload(file_id)
@@ -2705,6 +2786,8 @@ async def customer_create_order(request: Request):
             shutil.copy2(src, src_backup)
         except Exception:
             src_backup = src
+        if storage.is_r2_configured() and os.path.isfile(src_backup):
+            await asyncio.to_thread(storage.upload_file_to_r2, src_backup)
 
         photos_map = {file_id: src}
         extra_photos = sp.get("photos") or []
@@ -2759,14 +2842,23 @@ async def customer_create_order(request: Request):
         if paper_size == "4x6":
             if file_type != "image":
                 raise HTTPException(status_code=400, detail="৪×৬ পাসপোর্ট শিট শুধু ছবির জন্য।")
+            pristine_upload = os.path.join(UPLOAD_DIR, f"pristine_{order_id}_{file_id}")
+            try:
+                shutil.copy2(file_path, pristine_upload)
+                extra_data_dict["pristine_path"] = pristine_upload
+                if storage.is_r2_configured():
+                    await asyncio.to_thread(storage.upload_file_to_r2, pristine_upload)
+            except Exception:
+                pass
             sheet_path = os.path.join(UPLOAD_DIR, f"sheet_{os.path.splitext(file_id)[0]}.jpg")
-            await asyncio.to_thread(utils.create_4x6_passport_sheet, file_path, sheet_path, 6, color_mode)
-            if sheet_path != file_path:
+            await asyncio.to_thread(utils.create_4x6_passport_sheet, file_path, sheet_path, 6, "color")
+            if sheet_path != file_path and file_path != pristine_upload:
                 utils.secure_delete_file(file_path)
             file_path = sheet_path
             original_filename = os.path.splitext(original_filename)[0] + "_4x6.jpg"
             page_count = 1
             total_price = shop["rate_photo_4x6"] * copies
+            extra_data_dict["customer_color_mode"] = customer_req_color
         else:
             if file_type == "image":
                 cfg = get_image_pos_config(file_id)
@@ -2779,19 +2871,28 @@ async def customer_create_order(request: Request):
                     pos_x, pos_y, scale = 0.5, 0.5, 1.0
                 fit_mode = str(img_pos_payload.get("fit_mode", cfg.get("fit_mode", "contain")))
 
+                pristine_upload = os.path.join(UPLOAD_DIR, f"pristine_{order_id}_{file_id}")
+                try:
+                    shutil.copy2(file_path, pristine_upload)
+                    extra_data_dict["pristine_path"] = pristine_upload
+                    if storage.is_r2_configured():
+                        await asyncio.to_thread(storage.upload_file_to_r2, pristine_upload)
+                except Exception:
+                    pass
+
                 a4_path = os.path.join(UPLOAD_DIR, f"a4_{orientation}_{os.path.splitext(file_id)[0]}.jpg")
                 await asyncio.to_thread(
                     utils.save_a4_image_sheet,
                     file_path,
                     a4_path,
-                    color_mode,
+                    "color",
                     orientation,
                     pos_x=pos_x,
                     pos_y=pos_y,
                     scale=scale,
                     fit_mode=fit_mode
                 )
-                if a4_path != file_path:
+                if a4_path != file_path and file_path != pristine_upload:
                     utils.secure_delete_file(file_path)
                 file_path = a4_path
             elif pages_per_sheet in (2, 4) and file_type == "pdf":
@@ -2802,7 +2903,7 @@ async def customer_create_order(request: Request):
                 file_path = nup_path
                 page_count = new_sheet_count
 
-            if color_mode == "bw":
+            if customer_req_color == "bw":
                 rate = shop["rate_bw_double"] if duplex == "double" else shop["rate_bw_single"]
             else:
                 rate = shop["rate_color_double"] if duplex == "double" else shop["rate_color_single"]

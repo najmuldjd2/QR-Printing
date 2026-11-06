@@ -84,11 +84,14 @@ def sanitize_params(raw: Dict) -> Dict:
     if camscan not in ("none", "magic_color", "bw_doc", "grayscale"):
         camscan = "none"
 
+    raw_fill = raw.get("fill")
+    fill = bool(raw_fill is True or str(raw_fill).lower() in ("true", "1", "autofill"))
+
     return {
         "paper": paper,
         "photos": photos,
         "items": items,
-        "fill": bool(raw.get("fill")),
+        "fill": fill,
         "brightness": _num(raw.get("brightness"), -60, 60, 0),
         "contrast": _num(raw.get("contrast"), -60, 60, 0),
         "bw": bool(raw.get("bw")),
@@ -234,10 +237,12 @@ def render_sheet(
     page_w, page_h, margin, gap = PAPERS[p["paper"]]
     mm = lambda v: int(round(v / 25.4 * dpi))
 
-    items = p["items"][:1] if p["fill"] else p["items"]
+    # Auto-fill entire sheet only if fill is explicitly True AND there is exactly 1 photo size
+    is_autofill = bool(p.get("fill")) and len(p.get("items", [])) == 1
+    items = p["items"][:1] if is_autofill else p["items"]
     expanded = []
     for i, it in enumerate(items):
-        n = 400 if p["fill"] else it["count"]
+        n = 400 if is_autofill else it.get("count", 1)
         expanded += [(i, it["w"], it["h"])] * n
     placements, _ = pack(expanded, page_w, page_h, margin, gap)
 
