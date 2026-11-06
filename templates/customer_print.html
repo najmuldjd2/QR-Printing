@@ -1,0 +1,1292 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>{{ shop.name }} | QR Se Print</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Hind Siliguri', sans-serif; -webkit-tap-highlight-color: transparent; }
+    .pulse-dot { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+  </style>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen pb-16">
+
+  <!-- Top Sticky Header -->
+  <header class="bg-white border-b sticky top-0 z-40 shadow-sm">
+    <div class="max-w-lg mx-auto px-4 py-3 flex items-center justify-between gap-2">
+      <div class="min-w-0">
+        <h1 class="font-bold text-lg text-gray-900 leading-tight truncate">{{ shop.name }}</h1>
+        <p class="text-xs text-gray-500 truncate">প্রোপ্রাইটর: {{ shop.owner_name or "দোকানদার" }}</p>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <button type="button" id="btnToggleRecentPrints" class="px-2.5 py-1.5 bg-pink-50 hover:bg-pink-100 text-pink-700 border border-pink-200 rounded-full text-xs font-bold flex items-center gap-1.5 transition shadow-sm">
+          <span>📋</span>
+          <span>সাম্প্রতিক প্রিন্ট</span>
+          <span id="recentPrintsBadge" class="hidden px-1.5 py-0.2 bg-pink-600 text-white rounded-full text-[10px] font-extrabold">০</span>
+        </button>
+        <div class="flex items-center gap-1.5 px-2.5 py-1 bg-green-50 text-green-700 border border-green-200 rounded-full text-xs font-semibold">
+          <span class="w-2 h-2 rounded-full bg-green-500 pulse-dot"></span>
+          <span>সক্রিয়</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-lg mx-auto px-4 py-4 space-y-4">
+
+    <!-- Recent Prints & Live Status Bar (Top of Customer Panel) -->
+    <div id="recentPrintsPanel" class="hidden bg-white rounded-2xl border border-pink-200 shadow-sm overflow-hidden">
+      <div class="px-4 py-2.5 bg-gradient-to-r from-pink-50 to-orange-50 border-b border-pink-100 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="text-base">📋</span>
+          <div>
+            <h2 class="font-bold text-xs sm:text-sm text-gray-900">আমার সাম্প্রতিক প্রিন্ট ও বর্তমান অবস্থা</h2>
+            <p class="text-[10px] text-gray-500">যে কোনো অর্ডারে ক্লিক করে লাইভ স্ট্যাটাস দেখুন</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <button type="button" id="btnRefreshRecentPrints" class="px-2 py-1 bg-white hover:bg-gray-100 text-gray-700 border rounded-lg text-[11px] font-bold transition" title="স্ট্যাটাস রিফ্রেশ করুন">
+            🔄 রিফ্রেশ
+          </button>
+          <button type="button" id="btnCloseRecentPrints" class="text-gray-400 hover:text-gray-700 px-1.5 text-lg font-bold leading-none" title="বন্ধ করুন">&times;</button>
+        </div>
+      </div>
+      <div id="recentPrintsList" class="divide-y divide-gray-100 max-h-64 overflow-y-auto p-2 space-y-1.5">
+        <p class="text-xs text-gray-400 text-center py-4">এখনো কোনো প্রিন্ট অর্ডার পাঠানো হয়নি।</p>
+      </div>
+    </div>
+
+    <!-- Mode Switcher: Document / NID / Photo studio / File transfer -->
+    <div class="bg-white p-1.5 rounded-2xl border border-gray-200 shadow-sm grid grid-cols-2 sm:grid-cols-4 gap-1">
+      <button type="button" id="tabDocMode" class="py-2 rounded-xl font-bold text-[11px] sm:text-xs transition bg-pink-600 text-white shadow">
+        📄 ডকুমেন্ট / ফটো
+      </button>
+      <button type="button" id="tabNidMode" class="py-2 rounded-xl font-bold text-[11px] sm:text-xs transition text-gray-600 hover:text-gray-900">
+        🪪 NID / ID কার্ড
+      </button>
+      <button type="button" id="tabStudioMode" class="py-2 rounded-xl font-bold text-[11px] sm:text-xs transition text-gray-600 hover:text-gray-900">
+        📷 ফটো স্টুডিও
+      </button>
+      <button type="button" id="tabTransferMode" class="py-2 rounded-xl font-bold text-[11px] sm:text-xs transition text-gray-600 hover:text-gray-900">
+        📤 ফাইল ট্রান্সফার
+      </button>
+    </div>
+
+    <!-- ═════════ PRINT FLOW (steps 1-3) ═════════ -->
+    <div id="printFlow" class="space-y-4">
+
+    <!-- Step 1: Upload Box -->
+    <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm" id="uploadCard">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-bold text-gray-800 text-base flex items-center gap-1.5">
+          <span class="w-6 h-6 rounded-full bg-pink-100 text-pink-600 text-xs flex items-center justify-center font-bold">1</span>
+          <span id="step1Title">ডকুমেন্ট বা ছবি সিলেক্ট করুন</span>
+        </h2>
+        <a href="/resume" class="text-xs text-pink-600 font-bold hover:underline">📝 রেজুমে তৈরি?</a>
+      </div>
+
+      <!-- Normal Dropzone -->
+      <div id="dropzoneNormal" class="border-2 border-dashed border-gray-300 hover:border-pink-500 rounded-xl p-6 text-center cursor-pointer transition bg-gray-50 hover:bg-pink-50/20">
+        <input type="file" id="fileInput" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.rtf,.txt,image/png,image/jpeg,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/csv,text/plain" class="hidden">
+        <div class="text-3xl mb-1">📄</div>
+        <p class="font-bold text-gray-700 text-sm">ফাইল ড্রপ করুন অথবা ক্লিক করুন</p>
+        <p class="text-xs text-gray-500 mt-1">PDF, Word, Excel, PowerPoint (.pptx/.ppt), JPG, PNG (সর্বোচ্চ ৫০ MB)</p>
+      </div>
+
+      <!-- NID 2-Image Upload Box (Shown when NID tab active) -->
+      <div id="dropzoneNid" class="hidden space-y-3">
+        <div class="grid grid-cols-2 gap-3 text-center">
+          <!-- Front Side -->
+          <div id="nidFrontBox" class="border-2 border-dashed border-gray-300 hover:border-pink-500 rounded-xl p-4 bg-gray-50 hover:bg-pink-50/20 cursor-pointer">
+            <input type="file" id="nidFrontInput" accept="image/*" class="hidden">
+            <img id="nidFrontThumb" class="hidden w-full h-16 object-cover rounded-lg mb-1 border" alt="">
+            <div class="text-2xl mb-1" id="nidFrontIcon">🪪</div>
+            <p class="font-bold text-xs text-gray-800">১. সামনের পিঠ</p>
+            <span class="text-[10px] text-gray-400" id="nidFrontLabel">ছবি তুলুন/বাছুন</span>
+          </div>
+
+          <!-- Back Side -->
+          <div id="nidBackBox" class="border-2 border-dashed border-gray-300 hover:border-pink-500 rounded-xl p-4 bg-gray-50 hover:bg-pink-50/20 cursor-pointer">
+            <input type="file" id="nidBackInput" accept="image/*" class="hidden">
+            <img id="nidBackThumb" class="hidden w-full h-16 object-cover rounded-lg mb-1 border" alt="">
+            <div class="text-2xl mb-1" id="nidBackIcon">🔄</div>
+            <p class="font-bold text-xs text-gray-800">২. পেছনের পিঠ</p>
+            <span class="text-[10px] text-gray-400" id="nidBackLabel">ছবি তুলুন/বাছুন</span>
+          </div>
+        </div>
+
+        <button type="button" id="btnMergeNid" disabled class="w-full py-2.5 bg-gray-200 text-gray-500 font-bold text-xs rounded-xl transition cursor-not-allowed">
+          দুটো ছবি সিলেক্ট করে NID শিট তৈরি করুন
+        </button>
+      </div>
+
+      <!-- Uploading state -->
+      <div id="uploadProgress" class="hidden mt-3 space-y-1">
+        <div class="flex justify-between text-xs text-gray-500">
+          <span id="progressLabel">ফাইল আপলোড ও প্রসেসিং হচ্ছে...</span>
+          <span id="progressPercent">0%</span>
+        </div>
+        <div class="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
+          <div id="progressBar" class="bg-pink-600 h-full w-0 transition-all duration-300"></div>
+        </div>
+      </div>
+
+      <!-- Uploaded File Badge -->
+      <div id="fileInfoBadge" class="hidden mt-3 p-3 bg-pink-50 border border-pink-200 rounded-xl flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 overflow-hidden flex-1">
+          <span class="text-2xl" id="fileIcon">📄</span>
+          <div class="truncate">
+            <p class="font-bold text-gray-800 text-sm truncate" id="fileNameText">document.pdf</p>
+            <p class="text-xs text-pink-600 font-semibold" id="fileMetaText">মোট পেজ: ১</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+          <button type="button" id="btnOpenOfficeEdit" onclick="openOfficeEditModal()" class="hidden px-2 py-1 bg-amber-50 border border-amber-300 hover:bg-amber-100 text-amber-800 rounded-lg text-xs font-bold flex items-center gap-1 transition" title="ডকুমেন্ট বা টেবিল এডিট করুন">
+            <span>✏️</span> <span>এডিট</span>
+          </button>
+          <button type="button" id="btnRotateFile" class="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-bold flex items-center gap-1 transition" title="ফাইল ৯০° ঘোরান">
+            <span>↻</span> <span>ঘোরান</span>
+          </button>
+          <button type="button" id="btnOpenCrop" class="hidden px-2 py-1 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold flex items-center gap-1 transition" title="ছবি বা PDF পাতা ক্রপ করুন">
+            <span>✂️</span> <span>ক্রপ</span>
+          </button>
+          <button type="button" id="btnOpenCamScan" class="hidden px-2 py-1 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold flex items-center gap-1 transition" title="ক্যামস্ক্যানার ইফেক্ট">
+            <span>📄</span> <span>স্ক্যানার</span>
+          </button>
+          <button type="button" id="btnOpenRemoveBg" class="hidden px-2 py-1 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold flex items-center gap-1 transition" title="remove.bg সাইট থেকে ব্যাকগ্রাউন্ড পরিবর্তন">
+            <span>🌐</span> <span>remove.bg</span>
+          </button>
+          <button type="button" id="btnOpenImagePosition" onclick="openImagePositionModal()" class="hidden px-2.5 py-1 bg-violet-50 border border-violet-300 hover:bg-violet-100 text-violet-800 rounded-lg text-xs font-bold flex items-center gap-1 transition shadow-sm" title="A4 পেজে ছবির অবস্থান ও সাইজ ঠিক করুন">
+            <span>📐</span> <span>ছবি পজিশন</span>
+          </button>
+          <button type="button" id="btnOpenPreview" class="px-2.5 py-1 bg-pink-600 hover:bg-pink-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-sm transition">
+            <span>👁️</span> <span>প্রিভিউ</span>
+          </button>
+          <button type="button" id="btnRemoveFile" class="text-gray-400 hover:text-red-500 p-1 text-lg font-bold" title="মুছে ফেলুন">&times;</button>
+        </div>
+      </div>
+
+      <!-- Always-On Top Live Preview for Selected Photo / Document -->
+      <div id="docInlinePreview" class="hidden mt-3 space-y-2">
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-bold text-gray-700 flex items-center gap-1.5">
+            <span>👁️</span> <span id="docInlineTitle">সিলেক্ট করা ফাইলের লাইভ প্রিভিউ</span>
+          </span>
+          <span id="docInlineModeBadge" class="text-[10px] bg-gray-200 text-gray-800 px-2 py-0.5 rounded-full font-bold">সাদাকালো (B&W) • Portrait</span>
+        </div>
+        <div class="bg-slate-200/80 rounded-xl p-3 border flex flex-col items-center justify-center relative">
+          <div id="docInlineLoading" class="hidden absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center rounded-xl text-xs font-bold text-pink-600">
+            ⏳ পাতা লোড হচ্ছে...
+          </div>
+          <!-- Visual A4 Paper Frame that changes shape between Portrait (210:297) and Landscape (297:210) -->
+          <div id="docPaperSheet" class="w-[220px] sm:w-[250px] aspect-[210/297] bg-white rounded shadow-md border border-gray-300 p-2.5 flex items-center justify-center transition-all duration-300 overflow-hidden relative select-none">
+            <img id="docInlineImg" src="" alt="Selected photo live preview" class="max-w-full max-h-full object-contain transition-all duration-200 select-none">
+          </div>
+          <p id="docPaperOrientNote" class="text-[10px] font-bold text-gray-600 mt-1.5">📱 A4 লম্বালম্বি (Portrait) পেজ লেআউট</p>
+          <!-- Quick Image Placement Bar (shown only for single images) -->
+          <div id="imgPosQuickBar" class="hidden flex flex-wrap items-center justify-center gap-1 pt-1.5 text-xs">
+            <span class="text-[11px] font-bold text-gray-600 mr-0.5">📐 অবস্থান:</span>
+            <button type="button" onclick="nudgeImagePosition(-0.1, 0)" class="px-2 py-0.5 bg-white border border-gray-300 rounded text-xs hover:bg-violet-50 hover:text-violet-700 font-bold shadow-sm" title="বামে সরান">⬅️</button>
+            <button type="button" onclick="nudgeImagePosition(0, -0.1)" class="px-2 py-0.5 bg-white border border-gray-300 rounded text-xs hover:bg-violet-50 hover:text-violet-700 font-bold shadow-sm" title="উপরে সরান">⬆️</button>
+            <button type="button" onclick="nudgeImagePosition(0, 0.1)" class="px-2 py-0.5 bg-white border border-gray-300 rounded text-xs hover:bg-violet-50 hover:text-violet-700 font-bold shadow-sm" title="নিচে সরান">⬇️</button>
+            <button type="button" onclick="nudgeImagePosition(0.1, 0)" class="px-2 py-0.5 bg-white border border-gray-300 rounded text-xs hover:bg-violet-50 hover:text-violet-700 font-bold shadow-sm" title="ডানে সরান">➡️</button>
+            <button type="button" onclick="setImagePositionPreset(0.5, 0.5)" class="px-2 py-0.5 bg-white border border-gray-300 rounded text-xs hover:bg-violet-50 hover:text-violet-700 font-bold shadow-sm" title="মাঝে আনুন">🎯 মাঝে</button>
+            <button type="button" onclick="openImagePositionModal()" class="px-2.5 py-0.5 bg-violet-600 hover:bg-violet-700 text-white rounded-lg text-xs font-bold shadow-sm flex items-center gap-1 ml-1">
+              <span>🖱️ ড্রাগ ও সেট</span>
+            </button>
+          </div>
+        </div>
+        <!-- Multi-page navigation bar for multi-page PDFs -->
+        <div id="docInlinePageNav" class="hidden bg-white border border-pink-200 rounded-xl px-2.5 py-1.5 flex items-center justify-between gap-2 text-xs shadow-sm">
+          <button type="button" id="btnDocPrevPage" class="px-2.5 py-1 bg-gray-100 hover:bg-pink-50 hover:text-pink-700 text-gray-700 rounded-lg font-bold transition disabled:opacity-40">
+            ◀ আগের পাতা
+          </button>
+          <div class="flex items-center gap-1.5 font-bold text-gray-800">
+            <span>পাতা:</span>
+            <select id="docInlinePageSelect" class="px-2 py-0.5 border border-pink-300 rounded-lg bg-pink-50/50 text-pink-700 font-bold text-xs focus:outline-none">
+              <option value="1">১ / ১</option>
+            </select>
+          </div>
+          <button type="button" id="btnDocNextPage" class="px-2.5 py-1 bg-gray-100 hover:bg-pink-50 hover:text-pink-700 text-gray-700 rounded-lg font-bold transition disabled:opacity-40">
+            পরের পাতা ▶
+          </button>
+        </div>
+      </div>
+
+      <!-- NID live preview (real A4 sheet, exact card size) -->
+      <div id="nidInlinePreview" class="hidden mt-3 space-y-2">
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-bold text-gray-700">📐 প্রিন্ট প্রিভিউ (A4 পেজ, কার্ড আসল মাপে ৮৫.৬×৫৪ মিমি)</span>
+        </div>
+        <div class="bg-gray-100 rounded-xl p-2 border">
+          <img id="nidInlineImg" src="" alt="NID preview" class="w-full max-h-[420px] object-contain rounded-lg bg-white shadow border">
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" id="btnRotFront" class="py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs font-bold text-gray-700">↻ সামনের ছবি ঘোরান</button>
+          <button type="button" id="btnRotBack" class="py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-xs font-bold text-gray-700">↻ পেছনের ছবি ঘোরান</button>
+          <button type="button" onclick="openCropModal('front')" class="py-2 rounded-lg bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-xs font-bold text-indigo-700">✂️ সামনের পিঠ ক্রপ</button>
+          <button type="button" onclick="openCropModal('back')" class="py-2 rounded-lg bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-xs font-bold text-indigo-700">✂️ পেছনের পিঠ ক্রপ</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: Print Settings -->
+    <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm opacity-60 pointer-events-none transition" id="settingsCard">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-bold text-gray-800 text-base flex items-center gap-1.5">
+          <span class="w-6 h-6 rounded-full bg-pink-100 text-pink-600 text-xs flex items-center justify-center font-bold">2</span>
+          প্রিন্ট অপশন ঠিক করুন
+        </h2>
+        <button type="button" id="btnOpenPreviewMini" class="text-xs text-pink-600 hover:underline font-bold flex items-center gap-1">
+          <span>👁️ প্রিন্ট কেমন দেখাবে?</span>
+        </button>
+      </div>
+
+      <div class="space-y-3">
+        <!-- Paper Size / Mode (Document vs Photo) -->
+        <div id="paperTypeWrapper">
+          <label class="block text-xs font-semibold text-gray-600 mb-1">প্রিন্টের ধরন</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="border-2 rounded-xl p-2.5 flex items-center justify-between cursor-pointer border-pink-600 bg-pink-50 text-pink-900" id="optDocA4">
+              <input type="radio" name="paper_size" value="A4" checked class="hidden">
+              <span class="text-sm font-bold">📄 সাধারণ A4 পেপার</span>
+            </label>
+            <label class="border-2 rounded-xl p-2.5 flex items-center justify-between cursor-pointer border-gray-200 text-gray-700" id="optPhoto">
+              <input type="radio" name="paper_size" value="4x6" class="hidden">
+              <span class="text-sm font-bold">📷 ৪×৬ পাসপোর্ট শিট</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- NEW: Multiple Pages Per Sheet (N-up for PDF) -->
+        <div id="nupWrapper">
+          <div class="flex items-center justify-between mb-1">
+            <label class="block text-xs font-semibold text-gray-600">এক শিটে একাধিক পাতা (N-up)</label>
+            <span class="text-[10px] bg-green-100 text-green-800 px-1.5 py-0.5 rounded font-bold">কাগজ ও খরচ সাশ্রয়ী</span>
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <label class="border-2 rounded-xl p-2 text-center cursor-pointer border-pink-600 bg-pink-50 text-pink-900" id="optNup1">
+              <input type="radio" name="pages_per_sheet" value="1" checked class="hidden">
+              <p class="text-xs font-bold">১ পাতা / শিট</p>
+              <span class="text-[10px] text-gray-500">স্বাভাবিক</span>
+            </label>
+            <label class="border-2 rounded-xl p-2 text-center cursor-pointer border-gray-200 text-gray-700" id="optNup2">
+              <input type="radio" name="pages_per_sheet" value="2" class="hidden">
+              <p class="text-xs font-bold">২ পাতা / শিট</p>
+              <span class="text-[10px] text-green-600 font-bold">অর্ধেক খরচ!</span>
+            </label>
+            <label class="border-2 rounded-xl p-2 text-center cursor-pointer border-gray-200 text-gray-700" id="optNup4">
+              <input type="radio" name="pages_per_sheet" value="4" class="hidden">
+              <p class="text-xs font-bold">৪ পাতা / শিট</p>
+              <span class="text-[10px] text-green-600 font-bold">১/৪ খরচ!</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- NID only: how to fit the photo inside the card -->
+        <div id="nidFitWrapper" class="hidden">
+          <label class="block text-xs font-semibold text-gray-600 mb-1">ছবি কার্ডে কীভাবে বসবে</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="border-2 rounded-xl p-2.5 cursor-pointer border-pink-600 bg-pink-50 text-pink-900" id="optFitCover">
+              <input type="radio" name="nid_fit" value="cover" checked class="hidden">
+              <p class="text-sm font-bold">✂️ কার্ড ভরে (Crop)</p>
+              <p class="text-[10px] text-gray-500">কিনারা সামান্য কাটতে পারে</p>
+            </label>
+            <label class="border-2 rounded-xl p-2.5 cursor-pointer border-gray-200 text-gray-700" id="optFitContain">
+              <input type="radio" name="nid_fit" value="contain" class="hidden">
+              <p class="text-sm font-bold">🖼️ পুরো ছবি (Fit)</p>
+              <p class="text-[10px] text-gray-500">কিছু কাটা যাবে না</p>
+            </label>
+          </div>
+        </div>
+
+        <!-- Orientation: Portrait vs Landscape -->
+        <div id="orientationWrapper">
+          <label class="block text-xs font-semibold text-gray-600 mb-1">প্রিন্ট মোড / ওরিয়েন্টেশন (Orientation)</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="border-2 rounded-xl p-2.5 flex items-center justify-between cursor-pointer border-pink-600 bg-pink-50 text-pink-900" id="optPortrait">
+              <input type="radio" name="orientation" value="portrait" checked class="hidden">
+              <div class="flex items-center gap-2">
+                <span class="text-base">📱</span>
+                <div>
+                  <p class="text-sm font-bold">লম্বালম্বি (Portrait)</p>
+                  <p class="text-[10px] text-gray-500">স্ট্যান্ডার্ড খাড়া পেজ</p>
+                </div>
+              </div>
+            </label>
+            <label class="border-2 rounded-xl p-2.5 flex items-center justify-between cursor-pointer border-gray-200 text-gray-700" id="optLandscape">
+              <input type="radio" name="orientation" value="landscape" class="hidden">
+              <div class="flex items-center gap-2">
+                <span class="text-base">🖥️</span>
+                <div>
+                  <p class="text-sm font-bold">আড়াআড়ি (Landscape)</p>
+                  <p class="text-[10px] text-gray-500">প্রশস্ত ও ওয়াইড পেজ</p>
+                </div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Color Selection -->
+        <div id="colorModeWrapper">
+          <label class="block text-xs font-semibold text-gray-600 mb-1">কালার মোড</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="border-2 rounded-xl p-2.5 flex items-center justify-between cursor-pointer border-pink-600 bg-pink-50 text-pink-900" id="optBw">
+              <input type="radio" name="color_mode" value="bw" checked class="hidden">
+              <div>
+                <p class="text-sm font-bold">সাদাকালো (B&W)</p>
+                <p class="text-xs text-gray-500">৳{{ shop.rate_bw_single }}/পেজ</p>
+              </div>
+            </label>
+            <label class="border-2 rounded-xl p-2.5 flex items-center justify-between cursor-pointer border-gray-200 text-gray-700" id="optColor">
+              <input type="radio" name="color_mode" value="color" class="hidden">
+              <div>
+                <p class="text-sm font-bold">রঙিন (Color)</p>
+                <p class="text-xs text-gray-500">৳{{ shop.rate_color_single }}/পেজ</p>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Duplex / Single Side Selection -->
+        <div id="duplexWrapper">
+          <label class="block text-xs font-semibold text-gray-600 mb-1">প্রিন্ট সাইড</label>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="border-2 rounded-xl p-2.5 flex items-center justify-between cursor-pointer border-pink-600 bg-pink-50 text-pink-900" id="optSingle">
+              <input type="radio" name="duplex" value="single" checked class="hidden">
+              <div>
+                <p class="text-sm font-bold">এক পিঠ (Single-sided)</p>
+              </div>
+            </label>
+            <label class="border-2 rounded-xl p-2.5 flex items-center justify-between cursor-pointer border-gray-200 text-gray-700" id="optDouble">
+              <input type="radio" name="duplex" value="double" class="hidden">
+              <div>
+                <p class="text-sm font-bold">উভয় পিঠ (Duplex)</p>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Printer Selection Dropdown -->
+        <div id="printerSelectWrapper" class="pt-2 border-t">
+          <label class="block text-xs font-semibold text-gray-600 mb-1">🖨️ কোন প্রিন্টারে প্রিন্ট করবেন? (প্রিন্টার সিলেকশন)</label>
+          <select id="printerSelect" class="w-full px-3 py-2.5 border-2 border-gray-200 focus:border-pink-500 rounded-xl text-xs font-bold bg-white text-gray-800 outline-none transition cursor-pointer">
+            <option value="">⚡ অটো / ডিফল্ট প্রিন্টার (দোকানের মূল প্রিন্টার)</option>
+            {% for p in printers %}
+            <option value="{{ p.printer_name }}">🖨️ {{ p.printer_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Copies -->
+        <div class="flex items-center justify-between pt-2 border-t">
+          <div>
+            <label class="block text-xs font-semibold text-gray-600">কপি সংখ্যা</label>
+            <span class="text-xs text-gray-400">কত সেট প্রিন্ট চান</span>
+          </div>
+          <div class="flex items-center border rounded-xl overflow-hidden">
+            <button type="button" id="btnMinusCopy" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 font-bold text-gray-700 text-base">-</button>
+            <input type="number" id="inputCopies" value="1" min="1" max="100" class="w-12 text-center text-sm font-bold outline-none" readonly>
+            <button type="button" id="btnPlusCopy" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 font-bold text-gray-700 text-base">+</button>
+          </div>
+        </div>
+
+        <!-- Preview Big Button -->
+        <div class="pt-2">
+          <button type="button" id="btnOpenPreviewBanner" class="w-full py-2.5 bg-pink-50 hover:bg-pink-100 border border-pink-300 text-pink-700 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition shadow-sm">
+            <span>👁️</span>
+            <span>প্রিন্ট কেমন দেখাবে প্রিভিউ দেখুন (Print Preview)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Photo Studio settings (shown only in the Photo Studio tab) -->
+    <div id="studioCard" class="hidden bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-4 opacity-60 pointer-events-none">
+      <h2 class="font-bold text-gray-800 text-base flex items-center gap-2">
+        <span class="bg-gray-100 w-6 h-6 rounded-full flex items-center justify-center text-xs">২</span> ছবি এডিট ও সাজান
+      </h2>
+
+      <!-- live sheet preview -->
+      <div class="bg-gray-100 rounded-xl p-2 border">
+        <div class="flex items-center justify-between text-[11px] px-1 pb-1">
+          <span class="font-bold text-gray-600">📐 প্রিন্ট প্রিভিউ</span>
+          <span id="studioInfo" class="font-bold text-pink-700"></span>
+        </div>
+        <img id="studioPreviewImg" src="" alt="preview" class="w-full max-h-[460px] object-contain rounded-lg bg-white shadow border">
+      </div>
+
+      <!-- Multi-photo Pool / Gallery for Photo Studio -->
+      <div class="space-y-2 bg-pink-50/50 p-2.5 rounded-xl border border-pink-200">
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-bold text-gray-800 flex items-center gap-1.5">
+            <span>📸</span> <span>যুক্ত করা ছবিসমূহ (ফটো পুল):</span>
+          </span>
+          <button type="button" id="btnAddStudioPhoto" onclick="document.getElementById('inputAddStudioPhoto').click()" class="px-2.5 py-1 bg-pink-600 hover:bg-pink-700 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-sm transition">
+            <span>➕</span> <span>নতুন ছবি যোগ করুন</span>
+          </button>
+          <input type="file" id="inputAddStudioPhoto" accept="image/*" class="hidden" onchange="handleAddStudioPhoto(this)">
+        </div>
+        <div id="studioPhotoPool" class="flex flex-wrap items-center gap-2 pt-1"></div>
+        <p class="text-[10px] text-gray-500">💡 একাধিক ব্যক্তির ছবি বা একই ছবির ভিন্ন ফ্রেম এখানে যোগ করে নিচের প্রতিটি সারিতে আলাদাভাবে বসাতে পারবেন।</p>
+      </div>
+
+      <!-- sizes -->
+      <div class="space-y-2">
+        <label class="block text-xs font-semibold text-gray-600">ছবির সাইজ ও সংখ্যা (সর্বোচ্চ ১২ ধরনের ছবি একসাথে)</label>
+        <div id="studioItems" class="space-y-2"></div>
+        <label class="flex items-center gap-2 text-xs font-semibold text-gray-700 cursor-pointer">
+          <input type="checkbox" id="studioFill" class="w-4 h-4"> পেজ পুরো ভরে ফেলুন (প্রথম সাইজের ছবি যত ধরে)
+        </label>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-xs font-semibold text-gray-600 mb-1">পেপার</label>
+          <select id="studioPaper" class="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+            <option value="A4">A4 পেপার</option>
+            <option value="4x6">৪×৬ ইঞ্চি ফটো পেপার</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-600 mb-1">রঙ</label>
+          <select id="studioBw" class="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+            <option value="0">রঙিন</option>
+            <option value="1">সাদাকালো</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- tone -->
+      <div class="space-y-2">
+        <div>
+          <div class="flex justify-between text-xs"><span class="font-semibold text-gray-600">☀️ ব্রাইটনেস</span><span id="valBrightness" class="font-mono text-gray-500">0</span></div>
+          <input type="range" id="studioBrightness" min="-60" max="60" value="0" class="w-full accent-pink-600">
+        </div>
+        <div>
+          <div class="flex justify-between text-xs"><span class="font-semibold text-gray-600">◐ কনট্রাস্ট</span><span id="valContrast" class="font-mono text-gray-500">0</span></div>
+          <input type="range" id="studioContrast" min="-60" max="60" value="0" class="w-full accent-pink-600">
+        </div>
+      </div>
+
+      <!-- remove.bg website integration -->
+      <div class="p-3 bg-indigo-50/70 rounded-xl border border-indigo-200 flex items-center justify-between gap-2">
+        <div class="text-xs">
+          <p class="font-bold text-indigo-900">🌐 ব্যাকগ্রাউন্ড পরিবর্তন করতে চান?</p>
+          <p class="text-[11px] text-gray-600">remove.bg সাইটে গিয়ে ব্যাকগ্রাউন্ড পরিবর্তন করে এখানে আপলোড করুন</p>
+        </div>
+        <button type="button" onclick="openRemoveBgModal()" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shrink-0 shadow-sm">
+          🌐 remove.bg
+        </button>
+      </div>
+
+      <!-- zoom / position -->
+      <div class="space-y-2 p-3 bg-pink-50/40 rounded-xl border border-pink-200">
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-bold text-gray-700 flex items-center gap-1">
+            <span>🔍</span> <span>ক্রপ ও জুম সাজান:</span>
+            <span id="studioActiveRowLabel" class="text-pink-700 font-bold bg-white px-2 py-0.5 rounded border border-pink-300 shadow-xs">সারি ১</span>
+          </span>
+          <span id="valZoom" class="font-mono text-pink-700 font-bold">1.0×</span>
+        </div>
+        <input type="range" id="studioZoom" min="100" max="300" value="100" class="w-full accent-pink-600">
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <div class="text-xs font-semibold text-gray-600">↔ বামে/ডানে</div>
+            <input type="range" id="studioOx" min="-100" max="100" value="0" class="w-full accent-pink-600">
+          </div>
+          <div>
+            <div class="text-xs font-semibold text-gray-600">↕ উপরে/নিচে</div>
+            <input type="range" id="studioOy" min="-100" max="100" value="0" class="w-full accent-pink-600">
+          </div>
+        </div>
+        <p class="text-[10px] text-gray-500">💡 যেকোনো সারির জুম/পজিশন পরিবর্তন করলে তা শুধু সেই সারিতেই প্রযোজ্য হবে, অন্য সাইজে পরিবর্তন হবে না।</p>
+      </div>
+
+      <label class="flex items-center gap-2 text-xs font-semibold text-gray-700 cursor-pointer">
+        <input type="checkbox" id="studioBorder" checked class="w-4 h-4"> কাটার জন্য ছবির চারপাশে হালকা দাগ দিন
+      </label>
+
+      <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">🖨️ কোন প্রিন্টারে প্রিন্ট করবেন?</label>
+        <select id="studioPrinterSelect" class="w-full px-3 py-2 border-2 border-gray-200 focus:border-pink-500 rounded-xl text-xs font-bold bg-white text-gray-800 outline-none transition cursor-pointer">
+          <option value="">⚡ অটো / ডিফল্ট প্রিন্টার (দোকানের মূল প্রিন্টার)</option>
+          {% for p in printers %}
+          <option value="{{ p.printer_name }}">🖨️ {{ p.printer_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">শিট সংখ্যা (কপি)</label>
+        <div class="flex items-center gap-3">
+          <button type="button" id="btnStudioMinus" class="w-9 h-9 rounded-lg bg-gray-100 font-bold text-lg">−</button>
+          <input type="number" id="studioCopies" value="1" min="1" max="100" class="w-16 text-center border rounded-lg py-1.5 font-bold" readonly>
+          <button type="button" id="btnStudioPlus" class="w-9 h-9 rounded-lg bg-gray-100 font-bold text-lg">+</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Payment & Summary -->
+    <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm opacity-60 pointer-events-none transition" id="paymentCard">
+      <h2 class="font-bold text-gray-800 text-base mb-3 flex items-center gap-1.5">
+        <span class="w-6 h-6 rounded-full bg-pink-100 text-pink-600 text-xs flex items-center justify-center font-bold">3</span>
+        পেমেন্ট ও অর্ডার কনফার্ম
+      </h2>
+
+      <!-- Total Price Banner -->
+      <div class="bg-gradient-to-r from-pink-50 to-orange-50 border border-pink-200 rounded-xl p-3.5 mb-4 flex items-center justify-between">
+        <div>
+          <span class="text-xs font-semibold text-gray-500 uppercase">সর্বমোট বিল</span>
+          <p class="text-xs text-gray-500 font-semibold" id="billSummaryText">১ পেজ × ১ কপি</p>
+        </div>
+        <div class="text-right">
+          <span class="text-2xl font-black text-pink-600" id="totalPriceText">৳ 0</span>
+        </div>
+      </div>
+
+      <!-- Payment Method Selection -->
+      <div class="space-y-3">
+        <label class="block text-xs font-semibold text-gray-600">পেমেন্ট মাধ্যম বেছে নিন</label>
+        
+        <div class="grid grid-cols-3 gap-2 text-center">
+          {% if shop.allow_counter_cash %}
+          <label class="border-2 rounded-xl p-2 cursor-pointer border-pink-600 bg-pink-50 text-pink-900" id="payMethodCash">
+            <input type="radio" name="payment_method" value="counter_cash" checked class="hidden">
+            <span class="text-xl">💵</span>
+            <p class="text-xs font-bold mt-1">কাউন্টার ক্যাশ</p>
+          </label>
+          {% endif %}
+
+          {% if shop.bkash_number %}
+          <label class="border-2 rounded-xl p-2 cursor-pointer border-gray-200 text-gray-700" id="payMethodBkash">
+            <input type="radio" name="payment_method" value="bkash" class="hidden">
+            <span class="text-xl">🌸</span>
+            <p class="text-xs font-bold mt-1">বিকাশ</p>
+          </label>
+          {% endif %}
+
+          {% if shop.nagad_number %}
+          <label class="border-2 rounded-xl p-2 cursor-pointer border-gray-200 text-gray-700" id="payMethodNagad">
+            <input type="radio" name="payment_method" value="nagad" class="hidden">
+            <span class="text-xl">🔥</span>
+            <p class="text-xs font-bold mt-1">নগদ</p>
+          </label>
+          {% endif %}
+        </div>
+
+        <!-- MFS Info Box (bKash/Nagad) -->
+        <div id="mfsDetailsBox" class="hidden p-3 bg-yellow-50 border border-yellow-200 rounded-xl text-xs space-y-2">
+          <p class="font-bold text-yellow-900" id="mfsInstruction">দোকানের বিকাশ নম্বরে সেন্ড মানি করুন:</p>
+          <div class="flex items-center justify-between bg-white px-3 py-2 rounded-lg border font-mono font-bold text-sm text-gray-800">
+            <span id="mfsNumber">{{ shop.bkash_number or shop.nagad_number }}</span>
+            <button type="button" onclick="copyMfsNumber()" class="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded text-gray-700">কপি</button>
+          </div>
+          <div>
+            <label class="block font-semibold text-gray-700 mb-1">TrxID (ট্রানজেকশন আইডি) দিন:</label>
+            <input type="text" id="trxIdInput" placeholder="যেমন: 9J38K1LS..." class="w-full px-3 py-2 border rounded-lg uppercase outline-none text-sm font-mono">
+          </div>
+        </div>
+
+        <div class="pt-2">
+          <input type="text" id="custNameInput" placeholder="আপনার নাম (ঐচ্ছিক)" class="w-full px-3 py-2 border rounded-lg text-sm outline-none">
+        </div>
+
+        <button type="button" id="btnConfirmOrder" class="w-full py-3.5 bg-gradient-to-r from-pink-600 to-orange-500 text-white font-bold rounded-xl shadow-lg shadow-pink-500/25 hover:opacity-95 transition flex items-center justify-center gap-2 text-base">
+          <span>🖨️ প্রিন্ট অর্ডার নিশ্চিত করুন</span>
+        </button>
+      </div>
+    </div>
+
+    </div><!-- /printFlow -->
+
+      <!-- ═════════ FILE TRANSFER ═════════ -->
+    <div id="transferFlow" class="hidden space-y-4">
+
+      <!-- 1. Universal Device-to-Device File Transfer (Mobile<->Mobile, PC<->PC, Mobile<->PC) -->
+      <div class="bg-gradient-to-br from-slate-900 via-slate-800 to-pink-900 text-white p-4 rounded-2xl shadow-lg space-y-3 border border-slate-700">
+        <div class="flex items-center justify-between flex-wrap gap-1">
+          <h2 class="font-bold text-base flex items-center gap-1.5">
+            <span>📲</span> <span>মোবাইল ↔ মোবাইল ও পিসি ↔ পিসি ফাইল ট্রান্সফার</span>
+          </h2>
+          <span class="text-[10px] bg-pink-600 text-white px-2 py-0.5 rounded-full font-bold">সব ডিভাইস সাপোর্টেড</span>
+        </div>
+        <p class="text-xs text-slate-300">
+          মোবাইল থেকে মোবাইলে, পিসি থেকে পিসিতে অথবা মোবাইল থেকে পিসিতে যেকোনো ফাইল (ছবি, ভিডিও, PDF, ZIP...) সরাসরি আদান-প্রদান করুন।
+        </p>
+
+        <form method="post" action="/transfer/new">
+          <button type="submit" class="w-full py-3 bg-gradient-to-r from-pink-600 to-orange-500 hover:opacity-95 text-white font-bold rounded-xl shadow-md text-sm transition flex items-center justify-center gap-2">
+            <span>➕</span> <span>নতুন ট্রান্সফার রুম খুলুন (QR ও কোড পাবেন)</span>
+          </button>
+        </form>
+
+        <div class="pt-1 border-t border-slate-700/80 space-y-1.5">
+          <label class="block text-[11px] text-slate-300 font-semibold">অন্য মোবাইল বা পিসিতে খোলা রুমের ৮ অক্ষরের কোড থাকলে এখানে দিন:</label>
+          <div class="flex gap-2">
+            <input type="text" id="roomJoinCodeDirect" maxlength="12" placeholder="রুম কোড (যেমন: K7M9P2X4)" class="flex-1 px-3 py-2 rounded-xl bg-slate-800 border border-slate-600 text-white text-sm font-mono uppercase tracking-wider outline-none focus:border-pink-500">
+            <button type="button" id="btnRoomJoinDirect" class="px-4 py-2 bg-white hover:bg-pink-50 text-slate-900 rounded-xl text-xs font-extrabold shrink-0 transition">
+              যোগ দিন ➔
+            </button>
+          </div>
+        </div>
+
+        <a href="/transfer" class="block text-center text-xs text-pink-300 hover:text-white underline font-semibold pt-1">
+          📷 ক্যামেরা দিয়ে অন্য ফোনের QR স্ক্যান করতে এখানে ট্যাপ করুন
+        </a>
+      </div>
+
+      <!-- 2. Send File to Shop Counter -->
+      <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3">
+        <div>
+          <h2 class="font-bold text-gray-800 text-base">📤 দোকানে ফাইল পাঠান</h2>
+          <p class="text-xs text-gray-500 mt-0.5">যেকোনো ফাইল (Word, Excel, ZIP, ছবি, PDF...) সরাসরি দোকানদারের কম্পিউটারে পাঠান। প্রিন্ট না করেও পাঠানো যায়।</p>
+        </div>
+
+        <div id="trDropzone" class="border-2 border-dashed border-gray-300 hover:border-pink-500 rounded-xl p-6 text-center cursor-pointer transition bg-gray-50">
+          <input type="file" id="trFileInput" class="hidden">
+          <div class="text-3xl mb-1">📁</div>
+          <p class="font-bold text-gray-700 text-sm" id="trFileLabel">ফাইল বাছাই করতে ক্লিক করুন</p>
+          <p class="text-xs text-gray-400 mt-1">সর্বোচ্চ ৫০ MB • ২৪ ঘণ্টা পর স্বয়ংক্রিয়ভাবে মুছে যাবে</p>
+        </div>
+
+        <input type="text" id="trNameInput" maxlength="60" placeholder="আপনার নাম (ঐচ্ছিক)" class="w-full px-3 py-2 border rounded-lg text-sm outline-none">
+        <input type="text" id="trNoteInput" maxlength="300" placeholder="দোকানদারের জন্য নোট (ঐচ্ছিক) — যেমন: ২ কপি প্রিন্ট দেবেন" class="w-full px-3 py-2 border rounded-lg text-sm outline-none">
+
+        <div id="trProgress" class="hidden space-y-1">
+          <div class="flex justify-between text-xs text-gray-500"><span>আপলোড হচ্ছে...</span><span id="trPercent">0%</span></div>
+          <div class="w-full bg-gray-200 h-2 rounded-full overflow-hidden"><div id="trBar" class="bg-pink-600 h-full w-0 transition-all duration-300"></div></div>
+        </div>
+
+        <button type="button" id="btnTrSend" class="w-full py-3 bg-gradient-to-r from-pink-600 to-orange-500 text-white font-bold rounded-xl shadow-lg shadow-pink-500/25 text-sm">
+          📤 ফাইল পাঠিয়ে দিন
+        </button>
+
+        <div id="trSuccess" class="hidden p-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-900 space-y-1">
+          <p class="font-bold">✅ ফাইল সফলভাবে পাঠানো হয়েছে!</p>
+          <p class="text-xs">ট্রান্সফার আইডি: <span class="font-mono font-bold" id="trSuccessId"></span></p>
+          <p class="text-xs">দোকানদার তার ড্যাশবোর্ড থেকে ফাইলটি পাবেন।</p>
+        </div>
+      </div>
+
+      <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm space-y-2">
+        <h2 class="font-bold text-gray-800 text-base">📥 দোকান থেকে ফাইল নিন</h2>
+        <p class="text-xs text-gray-500">দোকানদার আপনাকে কিউআর কোড বা ৮ অক্ষরের কোড দিলে এখানে লিখুন (অথবা কিউআর স্ক্যান করুন)।</p>
+        <div class="flex gap-2">
+          <input type="text" id="trCodeInput" maxlength="8" placeholder="যেমন: A1B2C3D4" class="flex-1 px-3 py-2 border rounded-lg text-sm font-mono uppercase outline-none">
+          <button type="button" id="btnTrGet" class="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-bold">ফাইল দেখুন</button>
+        </div>
+      </div>
+    </div><!-- /transferFlow -->
+
+    <!-- Print Preview Modal Dialog -->
+    <div id="previewModalOverlay" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-3 hidden">
+      <div class="bg-white max-w-lg w-full max-h-[92vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-100">
+
+        <div class="px-4 py-3 bg-gray-900 text-white flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-lg">👁️</span>
+            <div>
+              <h3 class="font-bold text-sm leading-tight">প্রিন্ট প্রিভিউ (Print Preview)</h3>
+              <p class="text-[11px] text-gray-300 truncate max-w-[220px]" id="previewModalFileName">document.pdf</p>
+            </div>
+          </div>
+          <button type="button" id="btnClosePreviewModal" class="text-gray-400 hover:text-white text-2xl leading-none px-2 py-1">&times;</button>
+        </div>
+
+        <div class="bg-gradient-to-r from-pink-50 to-orange-50 border-b border-pink-100 px-4 py-2 text-xs flex items-center justify-between gap-2 flex-wrap">
+          <div class="flex items-center gap-1.5 text-pink-900 font-bold">
+            <span>📐</span> <span id="previewDimensionText"></span>
+          </div>
+          <div class="flex items-center gap-2">
+            <!-- 90 deg rotate in preview -->
+            <button type="button" id="btnPreviewRotate" class="px-2.5 py-1 bg-white hover:bg-gray-100 border rounded-lg text-xs font-bold text-gray-700 flex items-center gap-1 shadow-sm" title="ছবি ৯০° ঘোরান">
+              <span>↻</span> <span>৯০° ঘোরান</span>
+            </button>
+            <!-- Orientation toggle in preview -->
+            <button type="button" id="btnPreviewToggleOrient" class="px-2.5 py-1 bg-white hover:bg-gray-100 border rounded-lg text-xs font-bold text-gray-700 flex items-center gap-1 shadow-sm" title="Landscape / Portrait পরিবর্তন">
+              <span id="previewOrientIcon">🖥️</span> <span id="previewOrientText">Landscape করুন</span>
+            </button>
+            <div class="text-[11px] px-2.5 py-0.5 rounded-full font-bold bg-pink-100 text-pink-700 shrink-0" id="previewModeBadge">রঙিন (Color)</div>
+          </div>
+        </div>
+
+        <div class="flex-1 overflow-auto p-3 bg-gray-200 min-h-[320px]" id="previewScroll">
+          <p id="previewLoading" class="text-center text-xs text-gray-500 py-10">প্রিভিউ তৈরি হচ্ছে...</p>
+          <div id="previewPages" class="space-y-4"></div>
+          <iframe id="previewPdfFrame" src="" class="hidden w-full h-[60vh] rounded-lg border bg-white"></iframe>
+          <p class="text-[11px] text-gray-600 mt-3 text-center font-medium" id="previewGuideNote"></p>
+        </div>
+
+        <div class="p-3.5 bg-white border-t flex items-center justify-between gap-2">
+          <div class="text-xs">
+            <span class="text-gray-400 block text-[10px]">মোট প্রিন্ট খরচ</span>
+            <span class="text-base font-black text-pink-600" id="previewModalTotal">৳ 0</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="button" id="btnClosePreviewBtn" class="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl transition">বন্ধ করুন</button>
+            <button type="button" id="btnConfirmFromPreview" class="px-4 py-2 bg-gradient-to-r from-pink-600 to-orange-500 text-white text-xs font-bold rounded-xl shadow hover:opacity-95 transition">
+              সব ঠিক আছে ➔
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Order Tracker Modal -->
+    <div id="trackerOverlay" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+      <div class="bg-white max-w-sm w-full rounded-2xl p-6 text-center shadow-2xl space-y-4 relative">
+        <button type="button" id="btnCloseTrackerTop" class="absolute top-3.5 right-3.5 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-900 flex items-center justify-center text-lg font-bold transition" title="পেছনে যান">
+          &times;
+        </button>
+        <div class="w-16 h-16 mx-auto rounded-full bg-pink-50 border border-pink-200 flex items-center justify-center text-3xl" id="statusIcon">
+          ⏳
+        </div>
+        <div>
+          <h3 class="text-xl font-bold text-gray-900" id="statusTitle">অর্ডার গ্রহণ করা হয়েছে</h3>
+          <p class="text-xs text-gray-500 mt-1 font-mono" id="statusOrderId">Order ID: #</p>
+        </div>
+
+        <p class="text-sm text-gray-700 bg-gray-50 p-3 rounded-xl border border-gray-100" id="statusMessage">
+          কাউন্টার থেকে পেমেন্ট নিশ্চিত করা হচ্ছে। অনুগ্রহ করে অপেক্ষা করুন...
+        </p>
+
+        <div class="space-y-2 text-left text-xs text-gray-600">
+          <div class="flex items-center gap-2" id="step1">
+            <span class="w-4 h-4 rounded-full bg-green-500 text-white flex items-center justify-center text-[10px]">✓</span>
+            <span>ফাইল আপলোড সম্পন্ন</span>
+          </div>
+          <div class="flex items-center gap-2" id="step2">
+            <span class="w-4 h-4 rounded-full bg-gray-300 text-white flex items-center justify-center text-[10px]" id="step2Dot">2</span>
+            <span id="step2Text">পেমেন্ট নিশ্চিতকরণ</span>
+          </div>
+          <div class="flex items-center gap-2" id="step3">
+            <span class="w-4 h-4 rounded-full bg-gray-300 text-white flex items-center justify-center text-[10px]" id="step3Dot">3</span>
+            <span id="step3Text">প্রিন্টারে প্রিন্ট হচ্ছে</span>
+          </div>
+          <div class="flex items-center gap-2" id="step4">
+            <span class="w-4 h-4 rounded-full bg-gray-300 text-white flex items-center justify-center text-[10px]" id="step4Dot">4</span>
+            <span id="step4Text">প্রিন্ট সম্পন্ন</span>
+          </div>
+        </div>
+
+        <!-- Always-visible navigation actions so customer is never stuck waiting -->
+        <div id="trackerActionBtn" class="pt-1 space-y-2">
+          <div class="grid grid-cols-2 gap-2">
+            <button type="button" id="btnTrackerGoBack" class="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold rounded-xl transition">
+              ← পেছনে যান
+            </button>
+            <button type="button" id="btnTrackerNewPrint" class="w-full py-2.5 bg-pink-600 hover:bg-pink-700 text-white text-xs font-bold rounded-xl shadow transition">
+              ➕ নতুন প্রিন্ট করুন
+            </button>
+          </div>
+          <p class="text-[10px] text-gray-400">পেছনে গেলেও আপনার অর্ডার চালু থাকবে। উপরের <b>"সাম্প্রতিক প্রিন্ট"</b> থেকে যেকোনো সময় অবস্থা দেখতে পারবেন।</p>
+        </div>
+      </div>
+    </div>
+
+  
+    <!-- Individual Crop Modal (CamScanner 4-Corner Smart Perspective Crop + Live Result Preview + OK) -->
+    <div id="cropModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-3 hidden">
+      <div class="bg-white max-w-lg w-full rounded-2xl shadow-2xl flex flex-col overflow-hidden border">
+        <div class="px-4 py-3 bg-gray-900 text-white flex items-center justify-between">
+          <h3 class="font-bold text-sm flex items-center gap-2"><span>📐</span> <span id="cropModalTitleText">স্মার্ট ক্রপ ও বাঁকা ছবি সোজা করুন (Smart Crop)</span></h3>
+          <button type="button" onclick="closeCropModal()" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+        </div>
+
+        <!-- VIEW 1: 4-Corner / Box Selection Editor -->
+        <div id="cropEditorView" class="p-3 space-y-2.5">
+          <!-- NID Front / Back Switcher (Shown only in NID Mode) -->
+          <div id="nidCropSideSwitch" class="hidden grid grid-cols-2 gap-2 bg-gray-100 p-1 rounded-xl text-xs">
+            <button type="button" id="btnCropSideFront" onclick="switchNidCropSide('front')" class="py-1.5 rounded-lg font-bold bg-pink-600 text-white shadow-sm">🪪 ১. সামনের পিঠ (Front)</button>
+            <button type="button" id="btnCropSideBack" onclick="switchNidCropSide('back')" class="py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-200">🔄 ২. পেছনের পিঠ (Back)</button>
+          </div>
+
+          <!-- PDF Page Selector inside Crop Modal (Shown when cropping a multi-page PDF) -->
+          <div id="pdfCropPageBar" class="hidden flex items-center justify-between gap-2 bg-indigo-50 border border-indigo-200 rounded-xl px-2.5 py-1.5 text-xs">
+            <button type="button" onclick="changeModalPdfPage(-1, 'crop')" class="px-2 py-1 bg-white hover:bg-indigo-100 text-indigo-800 rounded-lg font-bold border border-indigo-200">◀ আগের পাতা</button>
+            <span id="pdfCropPageLabel" class="font-bold text-indigo-950">📄 পাতা ১ / ১ ক্রপ করছেন</span>
+            <button type="button" onclick="changeModalPdfPage(1, 'crop')" class="px-2 py-1 bg-white hover:bg-indigo-100 text-indigo-800 rounded-lg font-bold border border-indigo-200">পরের পাতা ▶</button>
+          </div>
+
+          <!-- Crop Mode Switcher: 4-Corner Smart Perspective vs Standard Box Crop -->
+          <div class="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-xl text-xs">
+            <button type="button" id="btnCropModeSmart" onclick="setCropMode('smart')" class="py-1.5 rounded-lg font-bold bg-emerald-600 text-white shadow-sm flex items-center justify-center gap-1">
+              <span>📐</span> <span>৪-কোণা স্মার্ট ক্রপ (CamScanner)</span>
+            </button>
+            <button type="button" id="btnCropModeNormal" onclick="setCropMode('normal')" class="py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-200 flex items-center justify-center gap-1">
+              <span>✂️</span> <span>সাধারণ ফ্রি ক্রপ</span>
+            </button>
+          </div>
+
+          <!-- Mode 1: CamScanner 4-Corner Perspective Canvas -->
+          <div id="smartCropSection" class="space-y-2">
+            <div class="relative bg-gray-950 rounded-xl overflow-hidden flex items-center justify-center h-[350px] max-h-[48vh] select-none touch-none" id="smartCropContainer">
+              <canvas id="smartCropCanvas" class="block cursor-crosshair touch-none"></canvas>
+              <!-- Magnifier Loupe while dragging corners -->
+              <canvas id="smartLoupeCanvas" width="104" height="104" class="hidden absolute top-2.5 left-2.5 rounded-full border-2 border-emerald-400 shadow-2xl pointer-events-none z-20 bg-black"></canvas>
+            </div>
+            <p class="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1 text-center font-medium">
+              💡 ছবির <b>৪টি সবুজ কোণা</b> টেনে বাঁকা ডকুমেন্ট বা কার্ডের ৪ কোণায় বসান এবং নিচে <b>"ক্রপ ও সোজা করুন"</b> চাপুন
+            </p>
+            <!-- Output Rectangle Shape Ratio for Smart Crop -->
+            <div class="grid grid-cols-3 sm:grid-cols-6 gap-1.5 text-center text-xs">
+              <button type="button" onclick="autoDetectSmartCorners()" class="py-1.5 px-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold rounded-lg">✨ অটো কোণা</button>
+              <button type="button" onclick="setSmartRatio('auto')" id="smartBtn_auto" class="smart-ratio-btn py-1.5 px-1.5 bg-emerald-600 text-white font-bold rounded-lg shadow-sm">অটো সাইজ</button>
+              <button type="button" onclick="setSmartRatio('nid')" id="smartBtn_nid" class="smart-ratio-btn py-1.5 px-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg">ID কার্ড</button>
+              <button type="button" onclick="setSmartRatio('a4')" id="smartBtn_a4" class="smart-ratio-btn py-1.5 px-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg">A4 ডকুমেন্ট</button>
+              <button type="button" onclick="setSmartRatio('passport')" id="smartBtn_passport" class="smart-ratio-btn py-1.5 px-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg">পাসপোর্ট</button>
+              <button type="button" onclick="setSmartRatio('square')" id="smartBtn_square" class="smart-ratio-btn py-1.5 px-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg">১:১ স্কয়ার</button>
+            </div>
+          </div>
+
+          <!-- Mode 2: Standard Cropper.js Rectangular Box -->
+          <div id="normalCropSection" class="hidden space-y-2">
+            <div class="relative bg-gray-950 rounded-xl overflow-hidden flex items-center justify-center h-[350px] max-h-[48vh]" id="cropContainer">
+              <img id="cropImgTarget" src="" class="max-h-full max-w-full block" alt="Crop target">
+            </div>
+            <div class="grid grid-cols-3 sm:grid-cols-6 gap-1.5 text-center text-xs">
+              <button type="button" onclick="setCropRatio('free')" id="cropBtnFree" class="crop-ratio-btn py-1.5 px-2 bg-pink-600 text-white font-bold rounded-lg shadow-sm">ফ্রি সাইজ</button>
+              <button type="button" onclick="setCropRatio('nid')" id="cropBtnNid" class="crop-ratio-btn py-1.5 px-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg">ID কার্ড</button>
+              <button type="button" onclick="setCropRatio('passport')" id="cropBtnPassport" class="crop-ratio-btn py-1.5 px-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg">পাসপোর্ট</button>
+              <button type="button" onclick="setCropRatio('stamp')" id="cropBtnStamp" class="crop-ratio-btn py-1.5 px-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg">স্ট্যাম্প</button>
+              <button type="button" onclick="setCropRatio('square')" id="cropBtnSquare" class="crop-ratio-btn py-1.5 px-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg">১:১ স্কয়ার</button>
+              <button type="button" onclick="rotateCropper(90)" class="py-1.5 px-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg flex items-center justify-center gap-1">↻ ৯০°</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- VIEW 2: Straightened / Cropped Live Result Inside Modal (Before clicking OK) -->
+        <div id="cropLiveResultView" class="hidden p-3.5 space-y-2.5">
+          <div class="bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl px-3 py-1.5 text-xs font-bold flex items-center justify-between">
+            <span>✨ ছবিটি সোজা ও ক্রপ করা হয়েছে (তাৎক্ষণিক প্রিভিউ)</span>
+            <span id="cropPreviewFilterBadge" class="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded-full">আসল ক্রপ</span>
+          </div>
+          <div class="relative bg-gray-950 rounded-xl overflow-hidden flex items-center justify-center h-[330px] max-h-[46vh] p-2 border border-gray-800">
+            <img id="cropResultPreviewImg" src="" alt="Straightened Live Result" class="max-h-full max-w-full object-contain rounded shadow-lg bg-white">
+          </div>
+          <!-- Instant Clarity Filter right inside Crop Preview -->
+          <div class="grid grid-cols-4 gap-1.5 text-center text-[11px]">
+            <button type="button" id="cropFx_none" onclick="setCropEnhanceFilter('none')" class="py-1.5 px-1.5 rounded-lg font-bold border-2 border-emerald-600 bg-emerald-50 text-emerald-900">🖼️ আসল ক্রপ</button>
+            <button type="button" id="cropFx_magic_color" onclick="setCropEnhanceFilter('magic_color')" class="py-1.5 px-1.5 rounded-lg font-bold border border-gray-200 bg-gray-50 text-gray-700 hover:border-emerald-500">✨ ম্যাজিক ক্লিয়ার</button>
+            <button type="button" id="cropFx_hd_clear" onclick="setCropEnhanceFilter('hd_clear')" class="py-1.5 px-1.5 rounded-lg font-bold border border-gray-200 bg-gray-50 text-gray-700 hover:border-emerald-500">💎 HD ক্লিয়ার</button>
+            <button type="button" id="cropFx_bw_doc" onclick="setCropEnhanceFilter('bw_doc')" class="py-1.5 px-1.5 rounded-lg font-bold border border-gray-200 bg-gray-50 text-gray-700 hover:border-emerald-500">🖨️ সাদাকালো</button>
+          </div>
+          <p class="text-[11px] text-gray-600 text-center font-medium">
+            ছবিটি ঠিক থাকলে নিচে <b>"✓ ওকে (প্রিন্ট পেইজে যান)"</b> চাপুন, অথবা পুনরায় কোণা পরিবর্তন করতে <b>"↩️ আবার কোণা ঠিক করুন"</b> চাপুন।
+          </p>
+        </div>
+
+        <!-- Footer 1: Shown while selecting corners/box -->
+        <div id="cropFooterStep1" class="p-3 bg-gray-50 border-t flex justify-end gap-2">
+          <button type="button" onclick="closeCropModal()" class="px-4 py-2 border rounded-xl text-xs font-bold text-gray-600">বাতিল</button>
+          <button type="button" id="btnPreviewCrop" onclick="previewCroppedImage()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow flex items-center gap-1.5">
+            <span>✂️</span> <span>ক্রপ ও সোজা করুন</span>
+          </button>
+        </div>
+
+        <!-- Footer 2: Shown when viewing straightened live preview inside modal -->
+        <div id="cropFooterStep2" class="hidden p-3 bg-gray-50 border-t flex items-center justify-between gap-2">
+          <button type="button" onclick="backToCropEditor()" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl text-xs font-bold flex items-center gap-1">
+            <span>↩️</span> <span>আবার কোণা ঠিক করুন</span>
+          </button>
+          <button type="button" id="btnConfirmCropOk" onclick="confirmAndSaveCrop()" class="px-6 py-2.5 bg-gradient-to-r from-pink-600 to-orange-500 hover:opacity-95 text-white rounded-xl text-xs font-bold shadow-lg flex items-center gap-1.5">
+            <span>✓</span> <span>ওকে (প্রিন্ট পেইজে যান)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Direct remove.bg Website Bridge Modal -->
+    <div id="removeBgModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-3 hidden">
+      <div class="bg-white max-w-md w-full rounded-2xl shadow-2xl flex flex-col overflow-hidden border">
+        <div class="px-4 py-3 bg-gradient-to-r from-indigo-700 to-slate-900 text-white flex items-center justify-between">
+          <h3 class="font-bold text-sm flex items-center gap-2"><span>🌐</span> <span>remove.bg সাইটে ছবি পরিবর্তন</span></h3>
+          <button type="button" onclick="closeRemoveBgModal()" class="text-white hover:opacity-80 text-2xl leading-none">&times;</button>
+        </div>
+        <div class="p-4 space-y-4 text-xs">
+          <!-- NID Front / Back Switcher if in NID mode -->
+          <div id="nidRbgSideSwitch" class="hidden grid grid-cols-2 gap-2 bg-gray-100 p-1 rounded-xl">
+            <button type="button" id="btnRbgSideFront" onclick="switchNidRbgSide('front')" class="py-1.5 rounded-lg font-bold bg-indigo-600 text-white shadow-sm">🪪 ১. সামনের পিঠ</button>
+            <button type="button" id="btnRbgSideBack" onclick="switchNidRbgSide('back')" class="py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-200">🔄 ২. পেছনের পিঠ</button>
+          </div>
+
+          <div class="p-3.5 bg-indigo-50/70 rounded-xl border border-indigo-200 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-indigo-950 text-sm">ধাপ ১: remove.bg সাইটে যান</span>
+              <span class="text-[10px] bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-bold">অফিসিয়াল সাইট</span>
+            </div>
+            <p class="text-gray-600 leading-relaxed">
+              নিচের বাটনে ক্লিক করে সরাসরি <b>remove.bg</b> ওয়েবসাইটে যান। সেখানে আপনার ছবির ব্যাকগ্রাউন্ড রিমুভ বা নতুন কালার/ব্যাকগ্রাউন্ড বসিয়ে ছবিটি ডাউনলোড করুন:
+            </p>
+            <a href="https://www.remove.bg/upload" target="_blank" rel="noopener" class="w-full py-2.5 bg-gray-900 hover:bg-black text-white text-center font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow">
+              <span>🌐</span> <span>remove.bg ওয়েবসাইট ওপেন করুন ↗</span>
+            </a>
+          </div>
+
+          <div class="p-3.5 bg-gray-50 rounded-xl border border-gray-200 space-y-2.5">
+            <span class="font-bold text-gray-900 text-sm block">ধাপ ২: ডাউনলোড করা ছবিটি এখানে দিন</span>
+            <p class="text-gray-500">
+              remove.bg থেকে ডাউনলোড করা ছবিটি সিলেক্ট করলেই সেটি আপনার বর্তমান ছবির জায়গায় বসে যাবে:
+            </p>
+            <input type="file" id="cutoutFileInput" accept="image/png,image/jpeg,image/webp" class="w-full text-xs file:mr-2 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer">
+          </div>
+        </div>
+        <div class="p-3 bg-gray-50 border-t flex justify-end">
+          <button type="button" onclick="closeRemoveBgModal()" class="px-4 py-2 border rounded-xl text-xs font-bold text-gray-600">বন্ধ করুন</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CamScanner Document Enhancer Modal with Live Preview -->
+    <div id="camscanModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-3 hidden">
+      <div class="bg-white max-w-lg w-full rounded-2xl shadow-2xl flex flex-col overflow-hidden border">
+        <div class="px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-700 text-white flex items-center justify-between">
+          <h3 class="font-bold text-sm flex items-center gap-2"><span>📄</span> <span>CamScanner ডকুমেন্ট স্ক্যানার ও প্রিভিউ</span></h3>
+          <button type="button" onclick="closeCamscanModal()" class="text-white hover:opacity-80 text-2xl leading-none">&times;</button>
+        </div>
+        <div class="p-3.5 space-y-3">
+          <!-- PDF Page & Scope Switcher inside CamScanner Modal -->
+          <div id="pdfCamscanScopeBar" class="hidden space-y-1.5 bg-emerald-50/80 border border-emerald-200 rounded-xl p-2 text-xs">
+            <div class="flex items-center justify-between gap-2">
+              <button type="button" onclick="changeModalPdfPage(-1, 'camscan')" class="px-2 py-1 bg-white hover:bg-emerald-100 text-emerald-800 rounded-lg font-bold border border-emerald-200">◀ আগের পাতা</button>
+              <span id="pdfCamscanPageLabel" class="font-bold text-emerald-950">📄 পাতা ১ / ১</span>
+              <button type="button" onclick="changeModalPdfPage(1, 'camscan')" class="px-2 py-1 bg-white hover:bg-emerald-100 text-emerald-800 rounded-lg font-bold border border-emerald-200">পরের পাতা ▶</button>
+            </div>
+            <div class="grid grid-cols-2 gap-1.5 pt-1 border-t border-emerald-200/70">
+              <button type="button" id="camScopeSingle" onclick="setCamscanPdfScope(false)" class="py-1 rounded-lg font-bold bg-emerald-600 text-white shadow-sm">📄 শুধু এই পাতায় প্রয়োগ করুন</button>
+              <button type="button" id="camScopeAll" onclick="setCamscanPdfScope(true)" class="py-1 rounded-lg font-bold bg-white text-emerald-900 border border-emerald-300 hover:bg-emerald-100">📚 সব পাতায় প্রয়োগ করুন</button>
+            </div>
+          </div>
+
+          <!-- Live Before/After Preview Box -->
+          <div class="relative bg-gray-900 rounded-xl overflow-hidden flex items-center justify-center h-[320px] max-h-[46vh] border border-gray-800">
+            <p id="camscanLoading" class="text-xs text-emerald-300 font-bold animate-pulse">⏳ স্ক্যান প্রিভিউ তৈরি হচ্ছে...</p>
+            <img id="camscanPreviewImg" src="" alt="Scan Preview" class="hidden max-h-full max-w-full object-contain">
+            <span id="camscanModeBadge" class="absolute top-2.5 right-2.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-600 text-white shadow">✨ ম্যাজিক কালার</span>
+          </div>
+
+          <p class="text-[11px] text-gray-600 text-center font-medium">
+            নিচের যেকোনো মোডে ক্লিক করে প্রিভিউ দেখুন এবং পছন্দ হলে <b>"স্ক্যান সেভ করুন"</b> বাটনে চাপুন:
+          </p>
+
+          <div class="grid grid-cols-5 gap-1.5 text-center text-[11px]">
+            <button type="button" id="camBtn_original" onclick="selectCamscanMode('original')" class="cam-mode-btn p-1.5 border-2 border-gray-200 hover:border-emerald-500 rounded-xl font-bold bg-gray-50 text-gray-700">
+              <span class="text-sm block mb-0.5">🖼️</span> আসল ছবি
+            </button>
+            <button type="button" id="camBtn_magic_color" onclick="selectCamscanMode('magic_color')" class="cam-mode-btn p-1.5 border-2 border-emerald-600 bg-emerald-50 text-emerald-900 rounded-xl font-bold">
+              <span class="text-sm block mb-0.5">✨</span> ম্যাজিক কালার
+            </button>
+            <button type="button" id="camBtn_hd_clear" onclick="selectCamscanMode('hd_clear')" class="cam-mode-btn p-1.5 border-2 border-gray-200 hover:border-emerald-500 rounded-xl font-bold bg-gray-50 text-gray-700">
+              <span class="text-sm block mb-0.5">💎</span> HD ক্লিয়ার
+            </button>
+            <button type="button" id="camBtn_bw_doc" onclick="selectCamscanMode('bw_doc')" class="cam-mode-btn p-1.5 border-2 border-gray-200 hover:border-emerald-500 rounded-xl font-bold bg-gray-50 text-gray-700">
+              <span class="text-sm block mb-0.5">🖨️</span> ফটোকপি B&W
+            </button>
+            <button type="button" id="camBtn_grayscale" onclick="selectCamscanMode('grayscale')" class="cam-mode-btn p-1.5 border-2 border-gray-200 hover:border-emerald-500 rounded-xl font-bold bg-gray-50 text-gray-700">
+              <span class="text-sm block mb-0.5">◐</span> গ্রে-স্কেল
+            </button>
+          </div>
+
+          <!-- Ink Contrast / Darkness Strength Control -->
+          <div id="camscanStrengthBar" class="flex items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-[11px]">
+            <span class="font-bold text-gray-600">🖋️ লেখার গাঢ়তা:</span>
+            <div class="grid grid-cols-3 gap-1.5 flex-1 max-w-[260px]">
+              <button type="button" id="camStr_light" onclick="setCamscanStrength('light')" class="py-1 px-2 rounded-lg font-bold border border-gray-200 bg-white text-gray-600 hover:border-emerald-400">🔆 হালকা</button>
+              <button type="button" id="camStr_normal" onclick="setCamscanStrength('normal')" class="py-1 px-2 rounded-lg font-bold border-2 border-emerald-600 bg-emerald-50 text-emerald-900">⚖️ স্বাভাবিক</button>
+              <button type="button" id="camStr_strong" onclick="setCamscanStrength('strong')" class="py-1 px-2 rounded-lg font-bold border border-gray-200 bg-white text-gray-600 hover:border-emerald-400">🔥 গাঢ় লেখা</button>
+            </div>
+          </div>
+        </div>
+        <div class="p-3 bg-gray-50 border-t flex justify-end gap-2">
+          <button type="button" onclick="closeCamscanModal()" class="px-4 py-2 border rounded-xl text-xs font-bold text-gray-600">বাতিল</button>
+          <button type="button" id="btnSaveCamscan" onclick="saveCamscanEffect()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow flex items-center gap-1.5">
+            <span>✓</span> <span>স্ক্যান সেভ করুন</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Interactive Word / Excel / Document Editor Modal -->
+    <div id="officeEditModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 hidden">
+      <div class="bg-white max-w-5xl w-full rounded-2xl shadow-2xl flex flex-col overflow-hidden border max-h-[94vh]">
+        <div class="px-4 py-2.5 bg-gradient-to-r from-amber-600 to-orange-600 text-white flex items-center justify-between shrink-0">
+          <h3 class="font-bold text-sm flex items-center gap-2">
+            <span>✏️</span> <span id="officeEditModalTitle">Word / Excel ডকুমেন্ট এডিটর</span>
+          </h3>
+          <button type="button" onclick="closeOfficeEditModal()" class="text-white hover:opacity-80 text-2xl leading-none">&times;</button>
+        </div>
+
+        <!-- Main Multi-Tier Advanced Toolbar -->
+        <div class="p-2.5 bg-amber-50/80 border-b border-amber-200 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0 select-none">
+          <!-- Word Full Advanced Formatting Toolbar -->
+          <div id="wordEditorToolbar" class="flex flex-wrap items-center gap-1.5">
+            <!-- Undo / Redo Group -->
+            <div class="flex items-center border border-amber-300 rounded-lg overflow-hidden bg-white shadow-xs">
+              <button type="button" onclick="execWordCmd('undo')" class="px-2 py-1 hover:bg-amber-100 font-bold border-r border-amber-200" title="পূর্বাবস্থায় ফিরুন (Undo / Ctrl+Z)">↶ আনডু</button>
+              <button type="button" onclick="execWordCmd('redo')" class="px-2 py-1 hover:bg-amber-100 font-bold" title="পুনরায় করুন (Redo / Ctrl+Y)">↷ রিডু</button>
+            </div>
+
+            <div class="h-5 w-px bg-amber-300 mx-0.5"></div>
+
+            <!-- Typography & Size -->
+            <select onchange="applyWordFormatBlock(this.value)" class="px-2 py-1 bg-white border border-gray-300 rounded-lg font-bold text-gray-700 text-xs">
+              <option value="p">সাধারণ লেখা</option>
+              <option value="h1">বড় হেডিং (H1)</option>
+              <option value="h2">মাঝারি হেডিং (H2)</option>
+              <option value="h3">ছোট হেডিং (H3)</option>
+            </select>
+            <select onchange="applyWordFontSize(this.value)" class="px-2 py-1 bg-white border border-gray-300 rounded-lg font-bold text-gray-700 text-xs">
+              <option value="1">10pt</option>
+              <option value="2">11pt</option>
+              <option value="3" selected>12pt</option>
+              <option value="4">14pt</option>
+              <option value="5">18pt</option>
+              <option value="6">24pt</option>
+            </select>
+
+            <!-- Text Formatting -->
+            <div class="flex items-center border border-gray-300 rounded-lg overflow-hidden bg-white">
+              <button type="button" onclick="execWordCmd('bold')" class="px-2 py-1 hover:bg-gray-100 font-extrabold border-r" title="Bold (Ctrl+B)">B</button>
+              <button type="button" onclick="execWordCmd('italic')" class="px-2 py-1 hover:bg-gray-100 italic font-serif border-r" title="Italic (Ctrl+I)">I</button>
+              <button type="button" onclick="execWordCmd('underline')" class="px-2 py-1 hover:bg-gray-100 underline border-r" title="Underline (Ctrl+U)">U</button>
+              <button type="button" onclick="execWordCmd('strikeThrough')" class="px-2 py-1 hover:bg-gray-100 line-through" title="Strikethrough">S</button>
+            </div>
+
+            <!-- Color controls -->
+            <label class="flex items-center gap-1 px-1.5 py-1 bg-white border border-gray-300 rounded-lg cursor-pointer" title="লেখার রং">
+              <span class="font-bold text-[10px] text-gray-700">🎨 রং:</span>
+              <input type="color" value="#000000" onchange="execWordCmd('foreColor', this.value)" class="w-4 h-4 border-0 p-0 bg-transparent cursor-pointer">
+            </label>
+            <label class="flex items-center gap-1 px-1.5 py-1 bg-white border border-gray-300 rounded-lg cursor-pointer" title="হাইলাইট রং">
+              <span class="font-bold text-[10px] text-gray-700">🖍️ ব্যাকগ্রাউন্ড:</span>
+              <input type="color" value="#ffff00" onchange="execWordCmd('hiliteColor', this.value)" class="w-4 h-4 border-0 p-0 bg-transparent cursor-pointer">
+            </label>
+
+            <div class="h-5 w-px bg-amber-300 mx-0.5"></div>
+
+            <!-- Alignment -->
+            <div class="flex items-center border border-gray-300 rounded-lg overflow-hidden bg-white">
+              <button type="button" onclick="execWordCmd('justifyLeft')" class="px-1.5 py-1 hover:bg-gray-100 font-bold border-r" title="বামে">⬅</button>
+              <button type="button" onclick="execWordCmd('justifyCenter')" class="px-1.5 py-1 hover:bg-gray-100 font-bold border-r" title="মাঝে">↔</button>
+              <button type="button" onclick="execWordCmd('justifyRight')" class="px-1.5 py-1 hover:bg-gray-100 font-bold border-r" title="ডানে">➡</button>
+              <button type="button" onclick="execWordCmd('justifyFull')" class="px-1.5 py-1 hover:bg-gray-100 font-bold" title="জাস্টিফাই">≡</button>
+            </div>
+
+            <!-- Lists -->
+            <div class="flex items-center border border-gray-300 rounded-lg overflow-hidden bg-white">
+              <button type="button" onclick="execWordCmd('insertUnorderedList')" class="px-2 py-1 hover:bg-gray-100 font-bold border-r" title="বুলেট লিস্ট">• লিস্ট</button>
+              <button type="button" onclick="execWordCmd('insertOrderedList')" class="px-2 py-1 hover:bg-gray-100 font-bold" title="নম্বর লিস্ট">1. লিস্ট</button>
+            </div>
+
+            <div class="h-5 w-px bg-amber-300 mx-0.5"></div>
+
+            <!-- Table Actions Group -->
+            <div class="flex flex-wrap items-center gap-1 bg-amber-100/70 p-0.5 rounded-lg border border-amber-300">
+              <button type="button" onclick="insertWordTable()" class="px-2 py-1 bg-white hover:bg-amber-50 text-amber-900 border border-amber-300 rounded font-bold" title="নতুন টেবিল ইনসার্ট করুন">➕ টেবিল</button>
+              <button type="button" onclick="addTableRowAbove()" class="px-1.5 py-1 bg-white hover:bg-amber-50 border border-gray-300 rounded font-bold" title="সেলের উপরে নতুন সারি যোগ করুন">⬆ সারি</button>
+              <button type="button" onclick="addTableRowBelow()" class="px-1.5 py-1 bg-white hover:bg-amber-50 border border-gray-300 rounded font-bold" title="সেলের নিচে নতুন সারি যোগ করুন">⬇ সারি</button>
+              <button type="button" onclick="addTableColLeft()" class="px-1.5 py-1 bg-white hover:bg-amber-50 border border-gray-300 rounded font-bold" title="বামে নতুন কলাম যোগ করুন">⬅ কলাম</button>
+              <button type="button" onclick="addTableColRight()" class="px-1.5 py-1 bg-white hover:bg-amber-50 border border-gray-300 rounded font-bold" title="ডানে নতুন কলাম যোগ করুন">➡ কলাম</button>
+              <button type="button" onclick="deleteTableRow()" class="px-1.5 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded font-bold" title="কারেন্ট সারি মুছুন">🗑️ সারি</button>
+              <button type="button" onclick="deleteTableCol()" class="px-1.5 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded font-bold" title="কারেন্ট কলাম মুছুন">🗑️ কলাম</button>
+              
+              <!-- Table Cell Background Color Picker -->
+              <label class="flex items-center gap-1 px-1.5 py-1 bg-white hover:bg-amber-50 text-amber-900 border border-amber-300 rounded font-bold cursor-pointer" title="সিলেক্ট করা সেল/ঘরের ব্যাকগ্রাউন্ডের রং পরিবর্তন করুন">
+                <span class="text-[10px]">🪣 সেল রং:</span>
+                <input type="color" value="#ffffff" onchange="setTableCellBackground(this.value)" class="w-4 h-4 border-0 p-0 bg-transparent cursor-pointer">
+              </label>
+
+              <!-- Quick Row/Col Resize Buttons -->
+              <div class="flex items-center border border-amber-300 rounded overflow-hidden bg-white text-[10px]">
+                <button type="button" onclick="adjustCurrentRowHeight(12)" class="px-1.5 py-1 hover:bg-amber-100 font-bold border-r border-amber-200" title="সারি উচ্চতা বাড়ান (Row +)">Row ⬆</button>
+                <button type="button" onclick="adjustCurrentRowHeight(-12)" class="px-1.5 py-1 hover:bg-amber-100 font-bold border-r border-amber-200" title="সারি উচ্চতা কমান (Row -)">Row ⬇</button>
+                <button type="button" onclick="adjustCurrentColWidth(15)" class="px-1.5 py-1 hover:bg-amber-100 font-bold border-r border-amber-200" title="কলামের প্রস্থ বাড়ান (Col +)">Col ➡</button>
+                <button type="button" onclick="adjustCurrentColWidth(-15)" class="px-1.5 py-1 hover:bg-amber-100 font-bold" title="কলামের প্রস্থ কমান (Col -)">Col ⬅</button>
+              </div>
+            </div>
+
+            <button type="button" onclick="execWordCmd('removeFormat')" class="px-2 py-1 bg-white border border-gray-300 hover:bg-gray-100 rounded-lg text-gray-600 font-bold" title="ফরম্যাটিং মুছে সাধারণ টেক্সট করুন">🧹 ফরম্যাট ক্লিয়ার</button>
+          </div>
+
+          <!-- Excel Grid Toolbar -->
+          <div id="excelEditorToolbar" class="hidden flex flex-wrap items-center gap-1.5">
+            <select id="excelSheetSelect" onchange="switchExcelSheet(this.value)" class="px-2 py-1 bg-white border border-amber-300 rounded-lg font-bold text-gray-800"></select>
+            <button type="button" onclick="addExcelRow()" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold">➕ নতুন সারি (Row)</button>
+            <button type="button" onclick="addExcelCol()" class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold">➕ নতুন কলাম (Col)</button>
+            <button type="button" onclick="deleteLastExcelRow()" class="px-2 py-1 bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 rounded-lg font-bold">🗑️ শেষ সারি মুছুন</button>
+          </div>
+
+          <div class="flex items-center gap-1.5 ml-auto">
+            <span class="text-[11px] font-bold text-gray-600">পেজ:</span>
+            <select id="officeEditOrientation" class="px-2 py-1 bg-white border border-gray-300 rounded-lg font-bold text-gray-800 text-xs">
+              <option value="portrait">📱 লম্বালম্বি (Portrait)</option>
+              <option value="landscape">🖥️ আড়াআড়ি (Landscape)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="p-3 overflow-y-auto flex-1 bg-slate-100 flex flex-col items-center">
+          <!-- Word Rich-Text Contenteditable Area Styled like real A4 Page -->
+          <div id="wordEditorArea" contenteditable="true" class="bg-white border border-gray-300 rounded shadow-md p-6 sm:p-10 w-full min-h-[500px] max-h-[64vh] overflow-y-auto text-sm text-gray-900 focus:outline-none focus:border-amber-500 leading-normal" style="font-family:'Calibri', 'Segoe UI', Arial, sans-serif;"></div>
+
+          <!-- Excel Interactive Spreadsheet Grid Area -->
+          <div id="excelEditorArea" class="hidden bg-white border border-gray-300 rounded-xl shadow-inner p-2 w-full min-h-[400px] max-h-[64vh] overflow-auto">
+            <table id="excelGridTable" class="w-full border-collapse text-xs"></table>
+          </div>
+        </div>
+
+        <div class="p-3 bg-gray-50 border-t flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div class="flex items-center gap-3 text-xs text-gray-600 font-medium">
+            <span>💡 <b>টেবিল রিসাইজ:</b> যেকোনো কলাম বা সারির বর্ডারে মাউস নিয়ে টেনে (Drag) ছোট-বড় করুন।</span>
+          </div>
+          <div class="flex items-center gap-2 ml-auto">
+            <button type="button" onclick="closeOfficeEditModal()" class="px-4 py-2 border rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100">বাতিল</button>
+            <button type="button" id="btnSaveOfficeEdit" onclick="saveOfficeEditedDocument()" class="px-5 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:opacity-95 text-white rounded-xl text-xs font-bold shadow flex items-center gap-1.5">
+              <span>✓</span> <span>পরিবর্তন সেভ করুন</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Image Position & Scale Drag-and-Drop Modal -->
+    <div id="imagePositionModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 hidden">
+      <div class="bg-white max-w-2xl w-full rounded-2xl shadow-2xl flex flex-col overflow-hidden border max-h-[96vh]">
+        <!-- Modal Header -->
+        <div class="px-4 py-3 bg-gradient-to-r from-violet-700 to-indigo-800 text-white flex items-center justify-between shrink-0">
+          <h3 class="font-bold text-sm sm:text-base flex items-center gap-2">
+            <span>📐</span> <span>A4 পেজে ছবির পজিশন ও সাইজ এডিটর</span>
+          </h3>
+          <button type="button" onclick="closeImagePositionModal()" class="text-white hover:opacity-80 text-2xl leading-none">&times;</button>
+        </div>
+
+        <!-- Modal Body (Two-column layout on sm+ screens) -->
+        <div class="p-3 sm:p-4 overflow-y-auto flex-1 flex flex-col sm:flex-row items-center sm:items-start justify-center gap-4 bg-slate-100">
+          <!-- Left: Visual A4 Canvas with Interactive Draggable Image -->
+          <div class="flex flex-col items-center shrink-0">
+            <div class="text-[11px] font-bold text-gray-600 mb-1.5 flex items-center gap-1.5">
+              <span>📄 A4 পেপার প্রিভিউ (মাউস বা আঙুল দিয়ে টেনে পজিশন করুন)</span>
+            </div>
+            <!-- The Paper Sheet Container -->
+            <div id="imgPosPaperCanvas" class="w-[220px] sm:w-[260px] aspect-[210/297] bg-white rounded shadow-lg border-2 border-violet-400 p-2 relative overflow-hidden transition-all select-none cursor-crosshair">
+              <!-- Margin Guide Lines (printable bounds) -->
+              <div class="absolute inset-2 border border-dashed border-gray-300 pointer-events-none rounded-sm"></div>
+              <!-- Draggable Image Box -->
+              <div id="imgPosDraggableBox" class="absolute cursor-grab active:cursor-grabbing border-2 border-violet-500 rounded bg-white/40 shadow-md touch-none select-none flex items-center justify-center overflow-hidden transition-transform duration-75">
+                <img id="imgPosDraggableImg" src="" alt="Moving Target" class="w-full h-full object-contain pointer-events-none select-none">
+              </div>
+            </div>
+            <!-- Live Coordinate Readout -->
+            <div class="mt-2 text-[11px] font-bold text-violet-800 bg-violet-100 px-3 py-1 rounded-full shadow-sm flex items-center gap-2">
+              <span id="imgPosCoordsText">অবস্থান: মাঝে (X: ৫০%, Y: ৫০%)</span>
+            </div>
+          </div>
+
+          <!-- Right: Controls & Presets -->
+          <div class="w-full sm:flex-1 space-y-3.5 bg-white p-3 sm:p-4 rounded-xl border border-gray-200 shadow-sm text-xs">
+            <!-- 1. Quick Direction Nudge Buttons (ডানে, বামে, উপরে, নিচে) -->
+            <div>
+              <p class="font-bold text-gray-800 mb-2 flex items-center gap-1">
+                <span>🕹️</span> <span>ডানে, বামে, উপরে, নিচে সরান:</span>
+              </p>
+              <div class="flex flex-col items-center gap-1">
+                <button type="button" onclick="nudgeImagePosition(0, -0.05)" class="px-4 py-1.5 bg-gray-100 hover:bg-violet-100 hover:text-violet-800 border rounded-lg font-bold shadow-sm transition active:scale-95" title="উপরে সরান">
+                  ⬆️ উপরে (Up)
+                </button>
+                <div class="flex items-center gap-2">
+                  <button type="button" onclick="nudgeImagePosition(-0.05, 0)" class="px-3.5 py-1.5 bg-gray-100 hover:bg-violet-100 hover:text-violet-800 border rounded-lg font-bold shadow-sm transition active:scale-95" title="বামে সরান">
+                    ⬅️ বামে (Left)
+                  </button>
+                  <button type="button" onclick="setImagePositionPreset(0.5, 0.5)" class="px-3 py-1.5 bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-300 rounded-lg font-bold shadow-sm transition active:scale-95" title="একদম সেন্টারে আনুন">
+                    🎯 সেন্টার
+                  </button>
+                  <button type="button" onclick="nudgeImagePosition(0.05, 0)" class="px-3.5 py-1.5 bg-gray-100 hover:bg-violet-100 hover:text-violet-800 border rounded-lg font-bold shadow-sm transition active:scale-95" title="ডানে সরান">
+                    ➡️ ডানে (Right)
+                  </button>
+                </div>
+                <button type="button" onclick="nudgeImagePosition(0, 0.05)" class="px-4 py-1.5 bg-gray-100 hover:bg-violet-100 hover:text-violet-800 border rounded-lg font-bold shadow-sm transition active:scale-95" title="নিচে সরান">
+                  ⬇️ নিচে (Down)
+                </button>
+              </div>
+            </div>
+
+            <!-- 2. 9-Grid Quick Placement -->
+            <div class="pt-1 border-t">
+              <p class="font-bold text-gray-800 mb-1.5 flex items-center gap-1">
+                <span>📍</span> <span>কুইক পজিশন প্রিসেট:</span>
+              </p>
+              <div class="grid grid-cols-3 gap-1.5 text-center">
+                <button type="button" onclick="setImagePositionPreset(0.0, 0.0)" class="p-1.5 bg-slate-50 hover:bg-violet-100 border rounded-lg font-semibold text-[11px] transition">↖️ উপরে-বামে</button>
+                <button type="button" onclick="setImagePositionPreset(0.5, 0.0)" class="p-1.5 bg-slate-50 hover:bg-violet-100 border rounded-lg font-semibold text-[11px] transition">⬆️ উপরে-মাঝে</button>
+                <button type="button" onclick="setImagePositionPreset(1.0, 0.0)" class="p-1.5 bg-slate-50 hover:bg-violet-100 border rounded-lg font-semibold text-[11px] transition">↗️ উপরে-ডানে</button>
+                <button type="button" onclick="setImagePositionPreset(0.0, 0.5)" class="p-1.5 bg-slate-50 hover:bg-violet-100 border rounded-lg font-semibold text-[11px] transition">⬅️ বামে</button>
+                <button type="button" onclick="setImagePositionPreset(0.5, 0.5)" class="p-1.5 bg-violet-100 text-violet-800 border border-violet-300 rounded-lg font-bold text-[11px] transition">🎯 মাঝে (সেন্টার)</button>
+                <button type="button" onclick="setImagePositionPreset(1.0, 0.5)" class="p-1.5 bg-slate-50 hover:bg-violet-100 border rounded-lg font-semibold text-[11px] transition">➡️ ডানে</button>
+                <button type="button" onclick="setImagePositionPreset(0.0, 1.0)" class="p-1.5 bg-slate-50 hover:bg-violet-100 border rounded-lg font-semibold text-[11px] transition">↙️ নিচে-বামে</button>
+                <button type="button" onclick="setImagePositionPreset(0.5, 1.0)" class="p-1.5 bg-slate-50 hover:bg-violet-100 border rounded-lg font-semibold text-[11px] transition">⬇️ নিচে-মাঝে</button>
+                <button type="button" onclick="setImagePositionPreset(1.0, 1.0)" class="p-1.5 bg-slate-50 hover:bg-violet-100 border rounded-lg font-semibold text-[11px] transition">↘️ নিচে-ডানে</button>
+              </div>
+            </div>
+
+            <!-- 3. Size / Scale Slider & Presets -->
+            <div class="pt-1 border-t">
+              <div class="flex items-center justify-between mb-1">
+                <span class="font-bold text-gray-800 flex items-center gap-1">
+                  <span>🔍</span> <span>ছবির সাইজ / স্কেল:</span>
+                </span>
+                <span id="imgPosScaleText" class="font-bold text-violet-700 bg-violet-50 px-2 py-0.5 rounded border border-violet-200">১০০% (ফুল ফিট)</span>
+              </div>
+              <input type="range" id="imgPosScaleSlider" min="20" max="100" value="100" step="5" oninput="onImageScaleSliderChange(this.value)" class="w-full accent-violet-600 cursor-pointer">
+              <div class="flex flex-wrap items-center gap-1.5 mt-2">
+                <button type="button" onclick="setImageScalePreset(0.25)" class="px-2 py-1 bg-gray-100 hover:bg-violet-100 border rounded font-semibold text-[11px]">২৫% ছোট</button>
+                <button type="button" onclick="setImageScalePreset(0.5)" class="px-2 py-1 bg-gray-100 hover:bg-violet-100 border rounded font-semibold text-[11px]">৫০% সাইজ</button>
+                <button type="button" onclick="setImageScalePreset(0.75)" class="px-2 py-1 bg-gray-100 hover:bg-violet-100 border rounded font-semibold text-[11px]">৭৫% সাইজ</button>
+                <button type="button" onclick="setImageScalePreset(1.0)" class="px-2 py-1 bg-gray-100 hover:bg-violet-100 border rounded font-semibold text-[11px]">১০০% ফুল ফিট</button>
+                <button type="button" onclick="setImageActualSizePreset()" class="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded font-semibold text-[11px]">📷 আসল সাইজ</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="p-3 bg-gray-50 border-t flex items-center justify-between gap-2 shrink-0">
+          <button type="button" onclick="setImagePositionPreset(0.5, 0.5, 1.0)" class="px-3.5 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl text-xs font-bold transition flex items-center gap-1">
+            <span>🔄</span> <span>রিসেট</span>
+          </button>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="closeImagePositionModal()" class="px-4 py-2 border rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100">
+              বাতিল
+            </button>
+            <button type="button" id="btnSaveImagePosition" onclick="saveImagePositionAndApply()" class="px-5 py-2 bg-gradient-to-r from-violet-600 to-indigo-700 hover:opacity-95 text-white rounded-xl text-xs font-bold shadow-md flex items-center gap-1.5 transition">
+              <span>✅</span> <span>ঠিক আছে (OK / পজিশন সেট করুন)</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    const SHOP_ID = {{ shop.id }};
+    const SHOP_CODE = "{{ shop.shop_code }}";
+    const BKASH_NUM = "{{ shop.bkash_number or '' }}";
+    const NAGAD_NUM = "{{ shop.nagad_number or '' }}";
+    const RATES = {
+      bw_single: {{ shop.rate_bw_single }},
+      bw_double: {{ shop.rate_bw_double }},
+      color_single: {{ shop.rate_color_single }},
+      color_double: {{ shop.rate_color_double }},
+      photo_4x6: {{ shop.rate_photo_4x6 }},
+      photo_a4: {{ shop.rate_photo_a4 }}
+    };
+  </script>
+  <script src="/static/customer_print.js?v=2026102519"></script>
+</body>
+</html>

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR Standee | {{ shop.name }}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Hind Siliguri', sans-serif;
+    }
+    /* Exact A4 sheet preview & print container with preserved outer margin & card border */
+    .a4-sheet {
+      width: 210mm;
+      min-height: 297mm;
+      padding: 16mm 18mm;
+      background: #ffffff;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .standee-card {
+      width: 100%;
+      max-width: 174mm;
+      border: 4px solid #ec4899 !important;
+      border-radius: 24px !important;
+      padding: 28px 28px !important;
+      background: #ffffff !important;
+    }
+    @page {
+      size: A4 portrait;
+      margin: 0mm !important;
+    }
+    @media screen and (max-width: 820px) {
+      .a4-sheet {
+        width: 100%;
+        min-height: auto;
+        padding: 16px;
+        border-radius: 16px;
+      }
+    }
+    @media print {
+      html, body {
+        width: 210mm;
+        height: 297mm;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+      .a4-sheet {
+        width: 210mm !important;
+        height: 297mm !important;
+        min-height: 297mm !important;
+        padding: 16mm 18mm !important;
+        margin: 0 auto !important;
+        box-shadow: none !important;
+        page-break-after: avoid;
+        page-break-inside: avoid;
+      }
+      .standee-card {
+        border: 4px solid #ec4899 !important;
+        border-radius: 24px !important;
+        padding: 28px 28px !important;
+        box-shadow: none !important;
+      }
+    }
+  </style>
+</head>
+<body class="bg-gray-200 min-h-screen py-6 px-3 flex flex-col items-center justify-center">
+
+  <div class="no-print mb-5 flex flex-wrap items-center justify-center gap-3">
+    <button onclick="window.print()" class="px-6 py-2.5 bg-pink-600 text-white font-bold rounded-xl shadow-lg hover:bg-pink-700 transition flex items-center gap-2">
+      <span>🖨️ এখনই প্রিন্ট করুন (প্রিভিউ মার্জিনসহ)</span>
+    </button>
+    <a href="/admin" class="px-4 py-2.5 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition">
+      ড্যাশবোর্ডে ফিরে যান
+    </a>
+  </div>
+
+  <!-- A4 Paper Sheet Preview (Shows exact outer margin + bordered standee card) -->
+  <div class="a4-sheet shadow-2xl rounded-sm">
+    <!-- Table Standee Card -->
+    <div class="standee-card text-center space-y-6 relative overflow-hidden">
+      <!-- Top badge -->
+      <div class="inline-block bg-pink-100 text-pink-700 font-bold px-4 py-1.5 rounded-full text-sm uppercase tracking-wide border border-pink-200">
+        ⚡ দ্রুত অটো-প্রিন্ট কাউন্টার
+      </div>
+
+      <!-- Shop Name -->
+      <div>
+        <h1 class="text-3xl font-extrabold text-gray-900 leading-tight">{{ shop.name }}</h1>
+        <p class="text-gray-600 text-sm mt-1 font-medium">প্রোপ্রাইটর: {{ shop.owner_name or "দোকানদার" }} • {{ shop.phone }}</p>
+      </div>
+
+      <!-- QR Code Box with clear margin -->
+      <div class="bg-gradient-to-b from-pink-50 to-orange-50 p-6 rounded-2xl border-2 border-dashed border-pink-400 inline-block">
+        <div class="bg-white p-3.5 rounded-xl border border-pink-100 shadow-sm inline-block">
+          <img src="/qr/{{ shop.shop_code }}.png" alt="Shop QR Code" class="w-64 h-64 mx-auto block object-contain">
+        </div>
+        <p class="text-xs font-mono font-bold text-gray-700 mt-3">
+          স্ক্যান করুন অথবা ভিজিট করুন:<br>
+          <span class="text-pink-600 text-sm">{{ customer_url }}</span>
+        </p>
+      </div>
+
+      <!-- 3 Simple Steps -->
+      <div class="grid grid-cols-3 gap-3 text-center text-xs pt-1">
+        <div class="p-3 bg-gray-50 border border-gray-200 rounded-xl">
+          <span class="text-xl">📷</span>
+          <p class="font-bold text-gray-800 mt-1">১. QR স্ক্যান</p>
+          <span class="text-[11px] text-gray-500">ফোনের ক্যামেরা দিয়ে</span>
+        </div>
+        <div class="p-3 bg-gray-50 border border-gray-200 rounded-xl">
+          <span class="text-xl">📄</span>
+          <p class="font-bold text-gray-800 mt-1">২. ফাইল আপলোড</p>
+          <span class="text-[11px] text-gray-500">PDF বা ছবি সিলেক্ট করুন</span>
+        </div>
+        <div class="p-3 bg-gray-50 border border-gray-200 rounded-xl">
+          <span class="text-xl">🖨️</span>
+          <p class="font-bold text-gray-800 mt-1">৩. প্রিন্ট সংগ্রহ</p>
+          <span class="text-[11px] text-gray-500">স্বয়ংক্রিয় প্রিন্ট বের হবে</span>
+        </div>
+      </div>
+
+      <!-- Footer privacy banner -->
+      <div class="pt-3 border-t border-gray-200 text-xs text-gray-600 flex items-center justify-center gap-1 font-medium">
+        <span>🔒 ১০০% নিরাপদ ও দ্রুত অটোমেটিক প্রিন্ট সিস্টেম</span>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

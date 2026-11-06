@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ফাইল ট্রান্সফার | মোবাইল ↔ মোবাইল • পিসি ↔ পিসি • মোবাইল ↔ পিসি</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style> body { font-family: 'Hind Siliguri', sans-serif; } </style>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+<div class="max-w-2xl mx-auto p-4 space-y-4">
+
+  <div class="flex items-center justify-between">
+    <a href="javascript:history.length > 1 ? history.back() : (location.href='/')" class="text-sm font-bold text-gray-600 hover:text-pink-600">← পেছনে যান</a>
+    <h1 class="font-black text-base sm:text-lg text-gray-900">📲 ইউনিভার্সাল ফাইল ট্রান্সফার</h1>
+    <a href="/" class="text-xs font-bold text-gray-500 hover:text-pink-600">হোম</a>
+  </div>
+
+{% if not room %}
+  <!-- ═════════ LANDING ═════════ -->
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4 text-center">
+    <div class="flex items-center justify-center gap-3 text-2xl sm:text-3xl font-bold">
+      <span class="px-3 py-1.5 bg-pink-50 border border-pink-200 rounded-xl text-sm text-pink-700">📱 ⇄ 📱 মোবাইল-মোবাইল</span>
+      <span class="px-3 py-1.5 bg-indigo-50 border border-indigo-200 rounded-xl text-sm text-indigo-700">💻 ⇄ 💻 পিসি-পিসি</span>
+      <span class="px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">📱 ⇄ 💻 মোবাইল-পিসি</span>
+    </div>
+    <h2 class="font-bold text-lg sm:text-xl text-gray-900">যেকোনো ডিভাইস থেকে যেকোনো ডিভাইসে ফাইল আদান-প্রদান করুন</h2>
+    <p class="text-xs sm:text-sm text-gray-500">কোনো অ্যাপ বা লগইন লাগবে না। ছবি, ভিডিও, PDF, Word, Excel, ZIP — সব ধরনের ফাইল পাঠানো ও ডাউনলোড করা যাবে।</p>
+
+    <form method="post" action="/transfer/new">
+      <button type="submit" class="w-full py-3.5 bg-gradient-to-r from-pink-600 to-orange-500 text-white font-bold rounded-xl shadow-lg shadow-pink-500/25 text-base hover:opacity-95 transition">
+        ➕ নতুন ট্রান্সফার রুম খুলুন (ফাইল পাঠাতে বা নিতে)
+      </button>
+    </form>
+
+    <div class="flex items-center gap-2 text-xs text-gray-400"><div class="flex-1 border-t"></div>অথবা অন্য ডিভাইসের রুমে যুক্ত হোন<div class="flex-1 border-t"></div></div>
+
+    <div class="flex gap-2">
+      <input id="joinCode" maxlength="8" placeholder="৮ অক্ষরের রুম কোড লিখুন" class="flex-1 px-3 py-2.5 border-2 border-gray-200 focus:border-pink-500 rounded-xl font-mono uppercase text-center tracking-widest outline-none text-sm font-bold">
+      <button id="btnJoin" class="px-5 py-2.5 bg-gray-900 hover:bg-black text-white rounded-xl font-bold text-sm transition">যোগ দিন</button>
+    </div>
+
+    <button type="button" id="btnScanQr" class="w-full py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition">
+      <span>📷</span> <span>ক্যামেরা দিয়ে অন্য মোবাইল বা পিসির QR কোড স্ক্যান করুন</span>
+    </button>
+
+    <!-- In-Browser QR Scanner Box -->
+    <div id="qrScannerBox" class="hidden space-y-2 pt-2">
+      <div id="qrReader" class="w-full rounded-xl overflow-hidden border-2 border-pink-400"></div>
+      <button type="button" id="btnStopQr" class="px-4 py-1.5 bg-red-100 text-red-700 rounded-lg text-xs font-bold">✕ ক্যামেরা বন্ধ করুন</button>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-2xl border border-gray-200 p-5 text-xs sm:text-sm text-gray-700 space-y-2.5">
+    <p class="font-bold text-gray-900">কীভাবে মোবাইল ↔ মোবাইল বা পিসি ↔ পিসি ফাইল পাঠাবেন?</p>
+    <p>১. <b>১ম ডিভাইসে (মোবাইল বা পিসি):</b> উপরের <b>"নতুন ট্রান্সফার রুম খুলুন"</b> বাটনে চাপুন — একটি QR কোড ও ৮ অক্ষরের কোড তৈরি হবে এবং আপনি সাথে সাথে ফাইল আপলোড করতে পারবেন।</p>
+    <p>২. <b>২য় ডিভাইসে (অন্য মোবাইল বা অন্য পিসি):</b> ক্যামেরা দিয়ে QR কোডটি স্ক্যান করুন, অথবা লিংক শেয়ার করুন, অথবা এই পেজে এসে ৮ অক্ষরের কোডটি লিখে <b>"যোগ দিন"</b> চাপুন।</p>
+    <p>৩. যেকোনো ডিভাইস থেকে ফাইল আপলোড করলেই অপর ডিভাইসে সাথে সাথে ফাইল চলে আসবে এবং <b>"⬇️ নামান"</b> বাটনে চেপে ডাউনলোড করা যাবে।</p>
+  </div>
+
+  <script>
+    function join() {
+      const raw = document.getElementById('joinCode').value.trim();
+      // Extract 8-char code even if user pasted full URL
+      const match = raw.match(/\/r\/([A-Za-z0-9]{4,12})/i);
+      const c = (match ? match[1] : raw).toUpperCase();
+      if (c.length < 4) { alert('রুমের কোডটি সঠিকভাবে লিখুন।'); return; }
+      location.href = '/r/' + encodeURIComponent(c);
+    }
+    document.getElementById('btnJoin').addEventListener('click', join);
+    document.getElementById('joinCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
+
+    let html5Qr = null;
+    const btnScan = document.getElementById('btnScanQr');
+    const btnStop = document.getElementById('btnStopQr');
+    const scanBox = document.getElementById('qrScannerBox');
+
+    if (btnScan) {
+      btnScan.addEventListener('click', async () => {
+        scanBox.classList.remove('hidden');
+        try {
+          if (!html5Qr) {
+            html5Qr = new Html5Qrcode('qrReader');
+          }
+          await html5Qr.start(
+            { facingMode: 'environment' },
+            { fps: 10, qrbox: { width: 220, height: 220 } },
+            (decodedText) => {
+              html5Qr.stop().catch(() => {});
+              scanBox.classList.add('hidden');
+              if (decodedText.startsWith('http://') || decodedText.startsWith('https://')) {
+                location.href = decodedText;
+              } else {
+                location.href = '/r/' + encodeURIComponent(decodedText.trim().toUpperCase());
+              }
+            },
+            () => {}
+          );
+        } catch (err) {
+          alert('ক্যামেরা চালু করা যায়নি। অনুগ্রহ করে ব্রাউজারে ক্যামেরা পারমিশন দিন অথবা ৮ অক্ষরের কোডটি লিখে যোগ দিন।');
+          scanBox.classList.add('hidden');
+        }
+      });
+    }
+    if (btnStop) {
+      btnStop.addEventListener('click', () => {
+        if (html5Qr) html5Qr.stop().catch(() => {});
+        scanBox.classList.add('hidden');
+      });
+    }
+  </script>
+
+{% else %}
+  <!-- ═════════ ACTIVE TRANSFER ROOM ═════════ -->
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+    <div class="flex flex-col sm:flex-row items-center gap-4">
+      <div class="text-center shrink-0">
+        <img src="/r/{{ room.id }}/qr.png" alt="QR" class="w-40 h-40 sm:w-44 sm:h-44 rounded-xl border p-1 bg-white mx-auto shadow-sm">
+        <p class="text-[10px] text-gray-500 mt-1 font-semibold">অন্য মোবাইলে স্ক্যান করুন</p>
+      </div>
+      <div class="text-center sm:text-left space-y-2 flex-1 min-w-0 w-full">
+        <div class="flex flex-wrap items-center justify-between gap-1">
+          <span class="text-xs font-bold text-gray-500">রুম কোড (অন্য মোবাইল/পিসিতে লিখুন):</span>
+          <span id="p2pStatusBadge" class="text-[10px] px-2.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800">⚡ সংযুক্ত</span>
+        </div>
+        <div class="flex items-center justify-center sm:justify-start gap-2">
+          <p class="font-mono font-black text-2xl sm:text-3xl tracking-widest text-pink-600 bg-pink-50 border border-pink-200 px-3 py-1 rounded-xl" id="roomCode">{{ room.id }}</p>
+          <button type="button" id="btnCopyCode" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-bold transition">কোড কপি</button>
+        </div>
+        <div class="flex gap-1.5">
+          <input id="roomLink" readonly value="{{ room.url }}" class="flex-1 min-w-0 px-2.5 py-1.5 border rounded-lg text-[11px] font-mono bg-gray-50">
+          <button id="btnCopy" class="px-3 py-1.5 bg-gray-900 hover:bg-black text-white rounded-lg text-xs font-bold shrink-0">লিংক কপি</button>
+          <button id="btnShareLink" class="px-3 py-1.5 bg-pink-600 hover:bg-pink-700 text-white rounded-lg text-xs font-bold shrink-0 flex items-center gap-1">
+            <span>📲</span> <span>শেয়ার</span>
+          </button>
+        </div>
+        <p class="text-[11px] text-gray-400">⏳ সেশনের মেয়াদ শেষ হবে: <span id="expText" data-iso="{{ room.expires_at }}"></span></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upload Box -->
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
+    <div class="flex items-center justify-between">
+      <h2 class="font-bold text-gray-800 text-sm sm:text-base">📤 এই ডিভাইস থেকে ফাইল পাঠান</h2>
+      <span class="text-[11px] text-pink-600 font-bold">মোবাইল ⇄ মোবাইল • পিসি ⇄ পিসি</span>
+    </div>
+    <div id="dropzone" class="border-2 border-dashed border-pink-300 hover:border-pink-600 rounded-xl p-6 text-center cursor-pointer bg-pink-50/20 hover:bg-pink-50/50 transition">
+      <input type="file" id="fileInput" multiple class="hidden">
+      <div class="text-3xl mb-1">📁</div>
+      <p class="font-bold text-gray-800 text-sm">ফাইল বা ছবি বাছাই করতে এখানে ট্যাপ/ক্লিক করুন</p>
+      <p class="text-xs text-gray-500 mt-1">একসাথে একাধিক ফাইল সিলেক্ট বা ড্র্যাগ করতে পারেন (প্রতিটি ৫০ MB পর্যন্ত ক্লাউডে + P2P আনলিমিটেড)</p>
+    </div>
+    <div id="uploadList" class="space-y-2"></div>
+  </div>
+
+  <!-- Shared Files List -->
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 space-y-3">
+    <div class="flex items-center justify-between flex-wrap gap-2">
+      <h2 class="font-bold text-gray-800 text-sm sm:text-base flex items-center gap-1.5">
+        <span>📥 আদান-প্রদানকৃত ফাইলসমূহ</span>
+        <span id="fileCount" class="text-xs bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full font-extrabold">0</span>
+      </h2>
+      <div class="flex items-center gap-2">
+        <button type="button" onclick="loadFiles()" class="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-bold">🔄 রিফ্রেশ</button>
+        <a id="btnZip" href="/api/room/{{ room.id }}/zip" class="hidden px-3 py-1 bg-gray-900 text-white rounded-lg text-xs font-bold">⬇️ সব ফাইল (ZIP)</a>
+      </div>
+    </div>
+    <div id="fileList" class="space-y-2">
+      <p class="text-center text-sm text-gray-400 py-6">এখনো কোনো ফাইল পাঠানো হয়নি। উপরের বক্সে ক্লিক করে ফাইল যোগ করুন।</p>
+    </div>
+    <div class="pt-2 flex items-center justify-between gap-2 border-t">
+      <a href="/transfer" class="px-3 py-2 text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg">➕ অন্য রুম কোডে যান</a>
+      <button id="btnClose" class="px-3 py-2 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg">🗑️ সেশন শেষ ও সব ফাইল ডিলিট করুন</button>
+    </div>
+  </div>
+
+  <script src="/static/webrtc_transfer.js?v=2026102525"></script>
+  <script>
+    const ROOM = "{{ room.id }}";
+    const MAX = 50 * 1024 * 1024;
+    const DEVICE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ? 'মোবাইল' : 'পিসি';
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const fmtSize = (b) => b < 1024 ? b + ' B' : b < 1048576 ? (b / 1024).toFixed(0) + ' KB' : b < 1073741824 ? (b / 1048576).toFixed(1) + ' MB' : (b / 1073741824).toFixed(2) + ' GB';
+    const fmtSpeed = (bps) => bps < 1048576 ? (bps / 1024).toFixed(0) + ' KB/s' : (bps / 1048576).toFixed(1) + ' MB/s';
+    const fmtTime = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }); };
+
+    const exp = new Date($('expText').dataset.iso);
+    $('expText').textContent = isNaN(exp) ? '' : exp.toLocaleString('bn-BD', { dateStyle: 'short', timeStyle: 'short' });
+
+    $('btnCopy').addEventListener('click', () => {
+      navigator.clipboard.writeText($('roomLink').value);
+      alert('✓ ট্রান্সফার রুমের লিংক কপি করা হয়েছে! অন্য মোবাইল বা পিসিতে পাঠিয়ে দিন।');
+    });
+
+    if ($('btnCopyCode')) {
+      $('btnCopyCode').addEventListener('click', () => {
+        navigator.clipboard.writeText(ROOM);
+        alert('✓ রুম কোড (' + ROOM + ') কপি করা হয়েছে!');
+      });
+    }
+
+    if ($('btnShareLink')) {
+      $('btnShareLink').addEventListener('click', async () => {
+        const shareData = {
+          title: 'QR Se Print - ফাইল ট্রান্সফার',
+          text: `ফাইল আদান-প্রদানের রুম কোড: ${ROOM}`,
+          url: $('roomLink').value
+        };
+        if (navigator.share) {
+          try { await navigator.share(shareData); return; } catch (e) {}
+        }
+        navigator.clipboard.writeText($('roomLink').value);
+        alert('✓ লিংক কপি করা হয়েছে! অন্য ডিভাইসে পেস্ট করে ওপেন করুন।');
+      });
+    }
+
+    async function loadFiles() {
+      try {
+        const res = await fetch(`/api/room/${ROOM}/files?t=${Date.now()}`);
+        if (res.status === 404) { location.href = '/transfer'; return; }
+        const data = await res.json();
+        $('fileCount').textContent = data.files.length;
+        $('btnZip').classList.toggle('hidden', data.files.length < 2);
+        $('fileList').innerHTML = data.files.length ? data.files.map((f) => `
+          <div class="border border-gray-200 bg-gray-50/70 hover:bg-white rounded-xl p-3 flex items-center justify-between gap-2 transition">
+            <div class="min-w-0 flex-1">
+              <p class="font-bold text-sm text-gray-900 truncate">${esc(f.name)}</p>
+              <p class="text-[11px] text-gray-500">${esc(f.size_text)} • ${esc(f.uploader || 'ডিভাইস')} থেকে • ${fmtTime(f.created_at)}</p>
+            </div>
+            <div class="flex gap-1.5 shrink-0">
+              <a href="/api/room/${ROOM}/file/${esc(f.id)}" download="${esc(f.name)}" class="px-3.5 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold shadow-sm">⬇️ নামান</a>
+              <button data-del="${esc(f.id)}" class="px-2.5 py-1.5 bg-gray-100 hover:bg-red-50 text-red-600 rounded-lg text-xs font-bold" title="মুছুন">✕</button>
+            </div>
+          </div>`).join('') : '<p class="text-center text-sm text-gray-400 py-6">এখনো কোনো ফাইল পাঠানো হয়নি। উপরের বক্সে ক্লিক করে ফাইল যোগ করুন।</p>';
+      } catch (e) { /* offline – try again later */ }
+    }
+
+    $('fileList').addEventListener('click', async (e) => {
+      const id = e.target.dataset && e.target.dataset.del;
+      if (!id || !confirm('ফাইলটি মুছে ফেলবেন?')) return;
+      await fetch(`/api/room/${ROOM}/file/${id}/delete`, { method: 'POST' });
+      loadFiles();
+    });
+
+    $('btnClose').addEventListener('click', async () => {
+      if (!confirm('সেশন শেষ করলে সব ফাইল মুছে যাবে। নিশ্চিত?')) return;
+      await fetch(`/api/room/${ROOM}/close`, { method: 'POST' });
+      location.href = '/transfer';
+    });
+
+    // ── upload (works across Mobile<->Mobile, PC<->PC, Mobile<->PC) ──
+    function uploadOne(file, row) {
+      return new Promise((resolve) => {
+        const bar = row.querySelector('.bar'), pct = row.querySelector('.pct');
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('device', DEVICE);
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `/api/room/${ROOM}/upload`);
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const p = Math.round(e.loaded / e.total * 100);
+            bar.style.width = p + '%';
+            pct.textContent = `${fmtSize(e.loaded)} / ${fmtSize(e.total)} (${p}%)`;
+          }
+        };
+        xhr.onload = () => {
+          if (xhr.status === 200) {
+            pct.textContent = `✅ পাঠানো সম্পন্ন (${fmtSize(file.size)})`;
+            bar.classList.replace('from-pink-600', 'from-green-500');
+            bar.classList.replace('to-orange-500', 'to-green-600');
+          } else {
+            let m = 'ব্যর্থ';
+            try { m = JSON.parse(xhr.responseText).detail || m; } catch (e) {}
+            pct.textContent = '❌';
+            row.querySelector('.msg').textContent = m;
+          }
+          resolve();
+        };
+        xhr.onerror = () => { pct.textContent = '❌'; row.querySelector('.msg').textContent = 'সংযোগ পাওয়া যায়নি'; resolve(); };
+        xhr.send(fd);
+      });
+    }
+
+    async function uploadFiles(list) {
+      for (const file of Array.from(list)) {
+        const row = document.createElement('div');
+        row.className = 'border-2 border-pink-100 bg-pink-50/40 rounded-xl p-3 text-xs space-y-1.5 shadow-sm';
+        
+        let thumbHtml = '';
+        if (file.type.startsWith('image/')) {
+          thumbHtml = `<img src="${URL.createObjectURL(file)}" class="w-10 h-10 object-cover rounded-lg border shrink-0 bg-white">`;
+        } else {
+          thumbHtml = `<div class="w-10 h-10 rounded-lg bg-white border flex items-center justify-center text-lg shrink-0">📄</div>`;
+        }
+
+        row.innerHTML = `
+          <div class="flex items-center gap-2.5">
+            ${thumbHtml}
+            <div class="min-w-0 flex-1">
+              <p class="font-bold text-gray-800 truncate">${esc(file.name)}</p>
+              <p class="text-[11px] text-gray-500">${fmtSize(file.size)} • ${esc(file.type || 'ফাইল')}</p>
+            </div>
+            <span class="pct font-bold text-pink-600 shrink-0 text-right">0%</span>
+          </div>
+          <div class="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
+            <div class="bar bg-gradient-to-r from-pink-600 to-orange-500 h-full w-0 transition-all duration-150"></div>
+          </div>
+          <p class="msg text-red-600 font-bold"></p>
+        `;
+        $('uploadList').prepend(row);
+
+        const isP2P = window.isP2PReady && window.isP2PReady();
+
+        // For files <= 50 MB, always upload to room storage so any device (even if it joins after upload or refreshes) sees it in the list,
+        // AND if P2P is connected, also stream via P2P for instant auto-download!
+        if (file.size <= MAX) {
+          if (isP2P) {
+            try { window.sendP2PFile(file); } catch (e) {}
+          }
+          await uploadOne(file, row);
+          loadFiles();
+        } else if (isP2P) {
+          // Files > 50 MB go directly over WebRTC P2P
+          window.sendP2PFile(file, (loaded, total, speedBps) => {
+            const p = Math.round(loaded / total * 100);
+            row.querySelector('.bar').style.width = p + '%';
+            let speedTxt = '';
+            if (speedBps && speedBps > 1024) {
+              const rem = Math.max(0, total - loaded);
+              const etaSec = Math.round(rem / speedBps);
+              const etaTxt = etaSec > 60 ? `${Math.floor(etaSec / 60)} মি. ${etaSec % 60} সে.` : `${etaSec} সে.`;
+              speedTxt = ` • ⚡ ${fmtSpeed(speedBps)} (বাকি: ${etaTxt})`;
+            }
+            row.querySelector('.pct').textContent = `${fmtSize(loaded)} / ${fmtSize(total)} (${p}%)${speedTxt}`;
+            if (p >= 100) {
+              row.querySelector('.pct').textContent = `✅ সম্পূর্ণ (P2P ডিরেক্ট)`;
+              row.querySelector('.bar').classList.replace('from-pink-600', 'from-emerald-500');
+              row.querySelector('.bar').classList.replace('to-orange-500', 'to-emerald-600');
+            }
+          });
+        } else {
+          row.querySelector('.pct').textContent = '❌ ৫০ MB অতিক্রম করেছে';
+          row.querySelector('.msg').innerHTML = '৫০ MB এর বড় ফাইল পাঠাতে উভয় ডিভাইসে রুমটি একসাথে খুলে ডিরেক্ট P2P সংযোগ চালু করুন। <a href="javascript:window.showP2PHelpModal()" class="underline font-bold text-pink-600">নিয়ম দেখুন</a>।';
+        }
+      }
+    }
+
+    $('dropzone').addEventListener('click', () => $('fileInput').click());
+    $('fileInput').addEventListener('change', (e) => { if (e.target.files.length) uploadFiles(e.target.files); e.target.value = ''; });
+    $('dropzone').addEventListener('dragover', (e) => { e.preventDefault(); $('dropzone').classList.add('border-pink-600'); });
+    $('dropzone').addEventListener('dragleave', () => $('dropzone').classList.remove('border-pink-600'));
+    $('dropzone').addEventListener('drop', (e) => { e.preventDefault(); $('dropzone').classList.remove('border-pink-600'); if (e.dataTransfer.files.length) uploadFiles(e.dataTransfer.files); });
+
+    // ── live updates (WebSocket) + polling fallback ──
+    function connect() {
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(`${proto}//${location.host}/ws/room/${ROOM}`);
+      ws.onopen = () => {
+        if (window.initWebRTC) window.initWebRTC(ws, DEVICE);
+      };
+      ws.onmessage = (ev) => {
+        try {
+          const m = JSON.parse(ev.data);
+          if (m.type && m.type.startsWith('webrtc_')) {
+            if (window.handleWebRTCSignal) window.handleWebRTCSignal(m);
+            return;
+          }
+          if (m.event === 'ROOM_CLOSED') location.href = '/transfer'; else loadFiles();
+        } catch (e) {}
+      };
+      ws.onclose = () => setTimeout(connect, 3000);
+      setInterval(() => { try { ws.send('ping'); } catch (e) {} }, 25000);
+    }
+    connect();
+    loadFiles();
+    setInterval(loadFiles, 15000);
+  </script>
+{% endif %}
+</div>
+</body>
+</html>

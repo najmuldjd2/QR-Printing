@@ -1,0 +1,17 @@
+name: Keep Render service warm
+
+on:
+  schedule:
+    # GitHub cron uses UTC. Runs every 10 minutes.
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping-render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ping Render health endpoint
+        env:
+          RENDER_HEALTH_URL: https://qr-print-bd.onrender.com/ping
+        run: curl --fail --silent --show-error --max-time 30 "$RENDER_HEALTH_URL"

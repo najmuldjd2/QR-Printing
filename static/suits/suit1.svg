@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <defs>
+    <linearGradient id="suitGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1f242d"/>
+      <stop offset="100%" stop-color="#0a0c10"/>
+    </linearGradient>
+    <linearGradient id="tieGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#991b1b"/>
+      <stop offset="100%" stop-color="#581010"/>
+    </linearGradient>
+  </defs>
+  <!-- White Shirt V-cut -->
+  <polygon points="150,110 250,110 215,280 185,280" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <!-- Shirt Collar Left & Right -->
+  <polygon points="150,110 185,150 160,180" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <polygon points="250,110 215,150 240,180" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+  <!-- Red Silk Tie -->
+  <polygon points="190,140 210,140 216,165 184,165" fill="#b91c1c"/>
+  <polygon points="186,165 214,165 220,340 200,375 180,340" fill="url(#tieGrad)" stroke="#450a0a" stroke-width="1"/>
+  <line x1="200" y1="170" x2="200" y2="350" stroke="#fca5a5" stroke-width="1.5" stroke-dasharray="8 6"/>
+  <!-- Suit Shoulders & Coat Body -->
+  <path d="M 150,110 L 40,165 L 10,400 L 390,400 L 360,165 L 250,110 L 225,230 L 200,280 L 175,230 Z" fill="url(#suitGrad)"/>
+  <!-- Coat Lapel Left -->
+  <polygon points="150,110 90,180 165,225 180,270 200,280 190,240 160,170" fill="#2d3748" stroke="#1a202c" stroke-width="2"/>
+  <!-- Coat Lapel Right -->
+  <polygon points="250,110 310,180 235,225 220,270 200,280 210,240 240,170" fill="#2d3748" stroke="#1a202c" stroke-width="2"/>
+  <!-- Pocket Square -->
+  <rect x="75" y="230" width="35" height="4" fill="#1a202c" rx="1"/>
+  <polygon points="80,230 90,218 100,230" fill="#ffffff"/>
+  <!-- Suit Buttons -->
+  <circle cx="200" cy="320" r="5" fill="#1e293b" stroke="#64748b" stroke-width="1"/>
+  <circle cx="200" cy="360" r="5" fill="#1e293b" stroke="#64748b" stroke-width="1"/>
+</svg>

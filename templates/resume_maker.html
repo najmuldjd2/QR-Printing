@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>সহজ রেজুমে মেকার | QR Se Print</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Hind Siliguri', sans-serif; }
+    @media print {
+      .no-print { display: none !important; }
+      body { background: white; padding: 0; }
+      #resumePreview { border: none !important; box-shadow: none !important; width: 100% !important; }
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4">
+
+  <div class="max-w-5xl mx-auto space-y-4">
+    <!-- Top Bar -->
+    <div class="no-print bg-white p-4 rounded-2xl shadow-sm flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="text-2xl">📝</span>
+        <h1 class="font-bold text-lg text-gray-900">তাত্ক্ষণিক রেজুমে / বায়োডাটা মেকার</h1>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="window.print()" class="px-5 py-2 bg-pink-600 text-white font-bold rounded-xl hover:bg-pink-700 transition">
+          🖨️ প্রিন্ট করুন
+        </button>
+        <button onclick="history.back()" class="px-4 py-2 border rounded-xl text-gray-700 font-bold hover:bg-gray-50">
+          ফিরে যান
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Builder Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+      <!-- Input Form -->
+      <div class="no-print bg-white p-6 rounded-2xl shadow-sm space-y-4 text-xs">
+        <h2 class="text-base font-bold text-gray-900 border-b pb-2">আপনার তথ্য দিন</h2>
+        
+        <div>
+          <label class="block font-bold text-gray-700 mb-1">পূর্ণ নাম</label>
+          <input type="text" id="inName" value="মোহাম্মদ করিম" oninput="updateResume()" class="w-full px-3 py-2 border rounded-lg">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-gray-700 mb-1">মোবাইল নম্বর</label>
+            <input type="text" id="inPhone" value="01711-XXXXXX" oninput="updateResume()" class="w-full px-3 py-2 border rounded-lg">
+          </div>
+          <div>
+            <label class="block font-bold text-gray-700 mb-1">ইমেইল</label>
+            <input type="text" id="inEmail" value="karim@email.com" oninput="updateResume()" class="w-full px-3 py-2 border rounded-lg">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-gray-700 mb-1">ঠিকানা</label>
+          <input type="text" id="inAddress" value="মিরপুর, ঢাকা - ১২১৬" oninput="updateResume()" class="w-full px-3 py-2 border rounded-lg">
+        </div>
+
+        <div>
+          <label class="block font-bold text-gray-700 mb-1">ক্যারিয়ার অবজেক্টিভ (উদ্দেশ্য)</label>
+          <textarea id="inObjective" rows="3" oninput="updateResume()" class="w-full px-3 py-2 border rounded-lg">একজন দক্ষ ও দায়িত্বশীল কর্মী হিসেবে প্রতিষ্ঠানের লক্ষ্য অর্জনে অবদান রাখতে চাই এবং কাজের মাধ্যমে নিজের দক্ষতা বৃদ্ধি করতে আগ্রহী।</textarea>
+        </div>
+
+        <div>
+          <label class="block font-bold text-gray-700 mb-1">শিক্ষাগত যোগ্যতা</label>
+          <textarea id="inEducation" rows="3" oninput="updateResume()" class="w-full px-3 py-2 border rounded-lg">• বি.এ (অনার্স) - জাতীয় বিশ্ববিদ্যালয় (২০২২)
+• এইচ.এস.সি - ঢাকা বোর্ড (২০১৮)
+• এস.এস.সি - ঢাকা বোর্ড (২০১৬)</textarea>
+        </div>
+
+        <div>
+          <label class="block font-bold text-gray-700 mb-1">কাজের অভিজ্ঞতা</label>
+          <textarea id="inExperience" rows="3" oninput="updateResume()" class="w-full px-3 py-2 border rounded-lg">• অফিস সহকারী - এ বি সি ট্রেডিং (২০২২ - বর্তমান)
+• কম্পিউটার অপারেটর - সততা ডিজিটাল সেন্টার (২০২০ - ২০২২)</textarea>
+        </div>
+
+        <div>
+          <label class="block font-bold text-gray-700 mb-1">দক্ষতা (Skills)</label>
+          <input type="text" id="inSkills" value="এমএস ওয়ার্ড, এক্সেল, ইন্টারনেট ব্রাউজিং, বাংলা ও ইংরেজি টাইপিং" oninput="updateResume()" class="w-full px-3 py-2 border rounded-lg">
+        </div>
+      </div>
+
+      <!-- Live A4 Resume Preview -->
+      <div class="bg-white p-8 rounded-2xl shadow-lg border border-gray-200 min-h-[600px] text-gray-800 space-y-5" id="resumePreview">
+        <div class="border-b-2 border-gray-900 pb-4 text-center">
+          <h1 class="text-2xl font-black text-gray-900 uppercase tracking-wide" id="outName">মোহাম্মদ করিম</h1>
+          <p class="text-xs text-gray-600 mt-1" id="outContact">মোবাইল: 01711-XXXXXX • ইমেইল: karim@email.com • মিরপুর, ঢাকা</p>
+        </div>
+
+        <div>
+          <h3 class="text-xs font-bold uppercase tracking-wider text-gray-900 border-b pb-1 mb-2 bg-gray-100 px-2 py-0.5">উদ্দেশ্য (Career Objective)</h3>
+          <p class="text-xs text-gray-700 leading-relaxed" id="outObjective"></p>
+        </div>
+
+        <div>
+          <h3 class="text-xs font-bold uppercase tracking-wider text-gray-900 border-b pb-1 mb-2 bg-gray-100 px-2 py-0.5">শিক্ষাগত যোগ্যতা (Education)</h3>
+          <p class="text-xs text-gray-700 whitespace-pre-line leading-relaxed" id="outEducation"></p>
+        </div>
+
+        <div>
+          <h3 class="text-xs font-bold uppercase tracking-wider text-gray-900 border-b pb-1 mb-2 bg-gray-100 px-2 py-0.5">কাজের অভিজ্ঞতা (Experience)</h3>
+          <p class="text-xs text-gray-700 whitespace-pre-line leading-relaxed" id="outExperience"></p>
+        </div>
+
+        <div>
+          <h3 class="text-xs font-bold uppercase tracking-wider text-gray-900 border-b pb-1 mb-2 bg-gray-100 px-2 py-0.5">অন্যান্য দক্ষতা (Skills)</h3>
+          <p class="text-xs text-gray-700" id="outSkills"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function updateResume() {
+      document.getElementById('outName').innerText = document.getElementById('inName').value;
+      document.getElementById('outContact').innerText = `মোবাইল: ${document.getElementById('inPhone').value} • ইমেইল: ${document.getElementById('inEmail').value} • ${document.getElementById('inAddress').value}`;
+      document.getElementById('outObjective').innerText = document.getElementById('inObjective').value;
+      document.getElementById('outEducation').innerText = document.getElementById('inEducation').value;
+      document.getElementById('outExperience').innerText = document.getElementById('inExperience').value;
+      document.getElementById('outSkills').innerText = document.getElementById('inSkills').value;
+    }
+    updateResume();
+  </script>
+</body>
+</html>
+

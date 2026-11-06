@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <!-- Formal White Shirt with Open Top Button -->
+  <path d="M 140,105 L 45,170 L 15,400 L 385,400 L 355,170 L 260,105 L 225,230 L 175,230 Z" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+  <!-- Front Button Placket -->
+  <rect x="188" y="160" width="24" height="240" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+  <circle cx="200" cy="205" r="4.5" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>
+  <circle cx="200" cy="265" r="4.5" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>
+  <circle cx="200" cy="325" r="4.5" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>
+  <circle cx="200" cy="385" r="4.5" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5"/>
+  <!-- Stiff Formal Collar Left & Right -->
+  <polygon points="140,105 190,165 175,185 130,120" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <polygon points="260,105 210,165 225,185 270,120" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <!-- Neck Shadow -->
+  <polygon points="175,130 225,130 200,165" fill="#e2e8f0"/>
+</svg>

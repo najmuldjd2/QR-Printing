@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: qr-print-bd
+    env: python
+    healthCheckPath: /ping
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: SECRET_KEY
+        generateValue: true
+      - key: BASE_URL
+        value: https://qr-print-bd.onrender.com

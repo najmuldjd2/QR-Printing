@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <defs>
+    <linearGradient id="blazerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#334155"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+  <!-- Inner White Top -->
+  <polygon points="145,115 255,115 210,260 190,260" fill="#f8fafc" stroke="#e2e8f0" stroke-width="2"/>
+  <!-- Blazer Body -->
+  <path d="M 145,115 L 45,165 L 20,400 L 380,400 L 355,165 L 255,115 L 220,240 L 180,240 Z" fill="url(#blazerGrad)"/>
+  <!-- Lapels -->
+  <polygon points="145,115 95,185 170,225 185,280 200,290 190,245 160,175" fill="#475569" stroke="#1e293b" stroke-width="2"/>
+  <polygon points="255,115 305,185 230,225 215,280 200,290 210,245 240,175" fill="#475569" stroke="#1e293b" stroke-width="2"/>
+</svg>
