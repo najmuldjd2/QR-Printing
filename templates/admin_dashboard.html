@@ -542,16 +542,19 @@
             <button type="button" onclick="stepEditPreviewPage(1)" class="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 rounded font-bold">পরের পাতা ▶</button>
           </div>
 
-          <!-- Customer-Like Tools Toolbar: Crop & Straighten, Rotate 90, CamScanner Quality -->
-          <div class="w-full grid grid-cols-3 gap-1.5 pt-1">
-            <button type="button" onclick="openOrderCropModal()" class="py-2 px-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow flex items-center justify-center gap-1 transition" title="ছবি বা ডকুমেন্টের কোণা সোজা ও ক্রপ করুন">
+          <!-- Customer-Like Tools Toolbar: Crop & Straighten, Rotate 90, CamScanner Quality, Revert Original -->
+          <div class="w-full grid grid-cols-4 gap-1.5 pt-1">
+            <button type="button" onclick="openOrderCropModal()" class="py-2 px-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-[11px] font-bold shadow flex items-center justify-center gap-1 transition" title="ছবি বা ডকুমেন্টের কোণা সোজা ও ক্রপ করুন">
               <span>✂️</span> <span>ক্রপ ও সোজা</span>
             </button>
-            <button type="button" onclick="rotateCurrentOrderPage()" class="py-2 px-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow flex items-center justify-center gap-1 transition" title="ডকুমেন্ট বা ছবি ৯০° ডানে ঘোরান">
-              <span>↻</span> <span>পাতা ঘোরান</span>
+            <button type="button" onclick="rotateCurrentOrderPage()" class="py-2 px-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-[11px] font-bold shadow flex items-center justify-center gap-1 transition" title="ডকুমেন্ট বা ছবি ৯০° ডানে ঘোরান">
+              <span>↻</span> <span>ঘোরান</span>
             </button>
-            <button type="button" onclick="openAdminCamscanModal()" class="py-2 px-1.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-xl text-xs font-bold shadow flex items-center justify-center gap-1 transition" title="ক্যামস্ক্যানার ম্যাজিক কোয়ালিটি ও স্পষ্ট করুন">
+            <button type="button" onclick="openAdminCamscanModal()" class="py-2 px-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-xl text-[11px] font-bold shadow flex items-center justify-center gap-1 transition" title="ক্যামস্ক্যানার ম্যাজিক কোয়ালিটি ও স্পষ্ট করুন">
               <span>🎨</span> <span>CamScan</span>
+            </button>
+            <button type="button" onclick="revertOrderToOriginalNow()" class="py-2 px-1 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white rounded-xl text-[11px] font-bold shadow flex items-center justify-center gap-1 transition" title="কাস্টোমারের আসল ডকুমেন্টে ফিরিয়ে নিন (সকল ক্রপ, ফিল্টার বাতিল হবে)">
+              <span>🔄</span> <span>আসল ফাইল</span>
             </button>
           </div>
 
@@ -1128,11 +1131,16 @@
           </label>
         </div>
       </div>
-      <div class="p-3 bg-gray-50 border-t flex justify-end gap-2">
-        <button type="button" onclick="closeAdminCamscanModal()" class="px-4 py-2 border rounded-xl text-xs font-bold text-gray-600">বাতিল</button>
-        <button type="button" id="btnApplyAdminCamscan" onclick="applyAdminCamscanNow()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow flex items-center gap-1.5">
-          <span>✓</span> <span>প্রয়োগ ও সংরক্ষণ করুন</span>
+      <div class="p-3 bg-gray-50 border-t flex items-center justify-between gap-2">
+        <button type="button" onclick="revertOrderToOriginalNow()" class="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-xl text-xs font-bold flex items-center gap-1 transition" title="সকল ফিল্টার বা এডিট বাতিল করে কাস্টোমারের আসল ফাইলে ফিরুন">
+          <span>🔄</span> <span>আসল ফাইল ফিরিয়ে নিন</span>
         </button>
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="closeAdminCamscanModal()" class="px-3.5 py-2 border rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100">বাতিল</button>
+          <button type="button" id="btnApplyAdminCamscan" onclick="applyAdminCamscanNow()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow flex items-center gap-1.5">
+            <span>✓</span> <span>প্রয়োগ ও সংরক্ষণ করুন</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -2901,9 +2909,9 @@
 
       let previewUrl = '';
       if (extra.is_nid || (currentEditingOrder && currentEditingOrder.paper_size === 'NID') || (currentEditingOrder && currentEditingOrder.file_path && currentEditingOrder.file_path.includes('nid_'))) {
-        previewUrl = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?side=front&t=${Date.now()}`;
+        previewUrl = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?side=front&pristine=1&t=${Date.now()}`;
       } else {
-        previewUrl = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?page=${editPreviewPage || 1}&t=${Date.now()}`;
+        previewUrl = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?page=${editPreviewPage || 1}&pristine=1&t=${Date.now()}`;
       }
 
       const img = new Image();
@@ -3002,6 +3010,39 @@
       } finally {
         btn.disabled = false;
         btn.innerHTML = '<span>✓</span> <span>প্রয়োগ ও সংরক্ষণ করুন</span>';
+      }
+    }
+
+    async function revertOrderToOriginalNow() {
+      if (!currentEditingOrderId) {
+        showAdminToast('কোনো অর্ডার নির্বাচন করা নেই।', 'error');
+        return;
+      }
+      if (!confirm('আপনি কি এই অর্ডারের সমস্ত ক্রপ, রোটেশন ও ফিল্টার বাতিল করে কাস্টোমারের আসল ডকুমেন্টে ফিরে যেতে চান?')) {
+        return;
+      }
+      try {
+        const res = await fetch(`/admin/order/${encodeURIComponent(currentEditingOrderId)}/revert-original`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+        if (data.success) {
+          closeAdminCamscanModal();
+          editModalHasChanges = true;
+          lastEditPreviewUrl = '';
+          refreshAdminEditPreview();
+          const fImg = document.getElementById('editNidFrontImg');
+          const bImg = document.getElementById('editNidBackImg');
+          if (fImg) fImg.src = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?side=front&t=${Date.now()}`;
+          if (bImg) bImg.src = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?side=back&t=${Date.now()}`;
+          showAdminToast('✓ কাস্টোমারের আসল ডকুমেন্ট সফলভাবে ফিরিয়ে আনা হয়েছে!');
+        } else {
+          showAdminToast('ফিরে যাওয়া সম্ভব হয়নি: ' + (data.detail || data.message || ''), 'error');
+        }
+      } catch (e) {
+        console.error(e);
+        showAdminToast('আসল ফাইল ফেরাতে ত্রুটি: ' + e.message, 'error');
       }
     }
 

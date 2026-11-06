@@ -939,6 +939,83 @@ async def edit_order_details(order_id: str, request: Request):
     return {"success": True, "updated": updates}
 
 
+def ensure_order_pristine_backup(order: dict):
+    """
+    Guarantees that an untouched pristine copy of the customer's original uploaded file(s)
+    is backed up permanently before any admin modifications (crop, rotate, CamScan).
+    """
+    import shutil
+    extra = {}
+    try:
+        extra = json.loads(order.get("extra_data") or "{}")
+    except Exception:
+        pass
+
+    orig_path = order.get("file_path") or ""
+    updated = False
+
+    # 1. NID Card (front and back images)
+    if extra.get("is_nid") or order.get("paper_size") == "NID" or "nid_" in orig_path:
+        token = extra.get("nid_token")
+        if not token and "nid_print_" in orig_path:
+            token = orig_path.split("nid_print_")[1].split(".pdf")[0]
+        if token:
+            front, back = nid_paths(token)
+            p_front = os.path.join(UPLOAD_DIR, f"pristine_nid_{token}_f.jpg")
+            p_back = os.path.join(UPLOAD_DIR, f"pristine_nid_{token}_b.jpg")
+            if os.path.isfile(front) and not os.path.isfile(p_front):
+                try:
+                    shutil.copy2(front, p_front)
+                    extra["pristine_front"] = p_front
+                    updated = True
+                except Exception:
+                    pass
+            if os.path.isfile(back) and not os.path.isfile(p_back):
+                try:
+                    shutil.copy2(back, p_back)
+                    extra["pristine_back"] = p_back
+                    updated = True
+                except Exception:
+                    pass
+
+    # 2. Photo Studio (source photo)
+    elif extra.get("is_studio") or order.get("paper_size") == "PHOTO" or "studio_" in orig_path:
+        src_name = extra.get("source_photo") or ""
+        src_path = os.path.join(UPLOAD_DIR, src_name) if src_name else None
+        if src_path and os.path.isfile(src_path):
+            p_photo = os.path.join(UPLOAD_DIR, f"pristine_{os.path.basename(src_path)}")
+            if not os.path.isfile(p_photo):
+                try:
+                    shutil.copy2(src_path, p_photo)
+                    extra["pristine_photo"] = p_photo
+                    updated = True
+                except Exception:
+                    pass
+
+    # 3. Regular Document (PDF) or Image
+    else:
+        existing_pristine = extra.get("pristine_path")
+        if not existing_pristine or not os.path.isfile(existing_pristine):
+            if orig_path and os.path.isfile(orig_path):
+                p_file = os.path.join(UPLOAD_DIR, f"pristine_{order['id']}_{os.path.basename(orig_path)}")
+                if not os.path.isfile(p_file):
+                    try:
+                        shutil.copy2(orig_path, p_file)
+                    except Exception:
+                        pass
+                if os.path.isfile(p_file):
+                    extra["pristine_path"] = p_file
+                    extra["original_file_path"] = orig_path
+                    updated = True
+
+    if updated:
+        try:
+            db.update_order_details(order["id"], {"extra_data": json.dumps(extra)})
+            order["extra_data"] = json.dumps(extra)
+        except Exception:
+            pass
+
+
 @app.get("/admin/order/{order_id}/sub-preview")
 async def admin_get_order_sub_preview(order_id: str, request: Request, side: str = "front"):
     shop = get_current_shop(request)
@@ -947,6 +1024,9 @@ async def admin_get_order_sub_preview(order_id: str, request: Request, side: str
     order = db.get_order(order_id)
     if not order or order["shop_id"] != shop["id"]:
         raise HTTPException(status_code=404, detail="Order not found")
+
+    ensure_order_pristine_backup(order)
+    pristine = str(request.query_params.get("pristine", "0")).lower() in ("1", "true")
 
     extra = {}
     try:
@@ -961,16 +1041,31 @@ async def admin_get_order_sub_preview(order_id: str, request: Request, side: str
             token = order["file_path"].split("nid_print_")[1].split(".pdf")[0]
         if token:
             front, back = nid_paths(token)
-            target_path = back if side == "back" else front
+            if pristine:
+                p_nid = os.path.join(UPLOAD_DIR, f"pristine_nid_{token}_b.jpg" if side == "back" else f"pristine_nid_{token}_f.jpg")
+                target_path = p_nid if os.path.isfile(p_nid) else (back if side == "back" else front)
+            else:
+                target_path = back if side == "back" else front
     elif extra.get("is_studio") or order.get("paper_size") == "PHOTO" or "studio_" in order["file_path"]:
         src_name = extra.get("source_photo") or ""
         p = os.path.join(UPLOAD_DIR, src_name) if src_name else None
-        if p and os.path.isfile(p):
+        if pristine and src_name:
+            p_photo = os.path.join(UPLOAD_DIR, f"pristine_{src_name}")
+            if os.path.isfile(p_photo):
+                target_path = p_photo
+            elif p and os.path.isfile(p):
+                target_path = p
+        elif p and os.path.isfile(p):
             target_path = p
         else:
             target_path = order["file_path"]
     else:
-        target_path = order["file_path"]
+        orig = order["file_path"]
+        if pristine:
+            p_file = extra.get("pristine_path") or os.path.join(UPLOAD_DIR, f"pristine_{order['id']}_{os.path.basename(orig)}")
+            target_path = p_file if os.path.isfile(p_file) else orig
+        else:
+            target_path = orig
 
     if not target_path or not os.path.isfile(target_path):
         target_path = order["file_path"]
@@ -999,6 +1094,8 @@ async def admin_save_order_crop(order_id: str, request: Request):
     order = db.get_order(order_id)
     if not order or order["shop_id"] != shop["id"]:
         raise HTTPException(status_code=404, detail="Order not found")
+
+    ensure_order_pristine_backup(order)
 
     body = await request.json()
     image_data = body.get("image_data") or ""
@@ -1071,8 +1168,11 @@ async def admin_save_order_crop(order_id: str, request: Request):
         im.save(new_path, "JPEG", quality=95)
         if storage.is_r2_configured() and os.path.isfile(new_path):
             await asyncio.to_thread(storage.upload_file_to_r2, new_path)
+        p_file = extra.get("pristine_path")
+        orig_rec = extra.get("original_file_path")
         if orig_path != new_path and os.path.isfile(orig_path):
-            utils.secure_delete_file(orig_path)
+            if orig_path != p_file and orig_path != orig_rec:
+                utils.secure_delete_file(orig_path)
         db.update_order_details(order_id, {
             "file_path": new_path,
             "file_type": "image",
@@ -1091,6 +1191,8 @@ async def admin_rotate_order_file(order_id: str, request: Request):
     order = db.get_order(order_id)
     if not order or order["shop_id"] != shop["id"]:
         raise HTTPException(status_code=404, detail="Order not found")
+
+    ensure_order_pristine_backup(order)
 
     body = await request.json()
     side = body.get("side") or "front"
@@ -1181,6 +1283,8 @@ async def admin_camscan_order_file(order_id: str, request: Request):
     if not order or order["shop_id"] != shop["id"]:
         raise HTTPException(status_code=404, detail="Order not found")
 
+    ensure_order_pristine_backup(order)
+
     body = await request.json()
     mode = clean_choice(body.get("mode"), ("original", "magic_color", "bw_doc", "hd_clear", "grayscale"), "magic_color")
     page = int(body.get("page") or 1)
@@ -1188,6 +1292,7 @@ async def admin_camscan_order_file(order_id: str, request: Request):
     side = body.get("side") or "front"
     import image_fx
     import office_docs
+    import shutil
 
     extra = {}
     try:
@@ -1203,12 +1308,19 @@ async def admin_camscan_order_file(order_id: str, request: Request):
             token = orig_path.split("nid_print_")[1].split(".pdf")[0]
         if token:
             front, back = nid_paths(token)
-            targets = [front, back] if side == "all" else [back if side == "back" else front]
-            for target in targets:
-                with Image.open(target) as im:
-                    im = ImageOps.exif_transpose(im).convert("RGB")
-                    enhanced = image_fx.camscanner_process(im, mode=mode)
-                    enhanced.save(target, "JPEG", quality=95)
+            p_front = os.path.join(UPLOAD_DIR, f"pristine_nid_{token}_f.jpg")
+            p_back = os.path.join(UPLOAD_DIR, f"pristine_nid_{token}_b.jpg")
+            targets = [("front", front, p_front), ("back", back, p_back)] if side == "all" else [(side, back if side == "back" else front, p_back if side == "back" else p_front)]
+            for s_name, working_target, pristine_target in targets:
+                src_to_read = pristine_target if os.path.isfile(pristine_target) else working_target
+                if mode == "original":
+                    if os.path.isfile(pristine_target) and pristine_target != working_target:
+                        shutil.copy2(pristine_target, working_target)
+                else:
+                    with Image.open(src_to_read) as im:
+                        im = ImageOps.exif_transpose(im).convert("RGB")
+                        enhanced = image_fx.camscanner_process(im, mode=mode)
+                        enhanced.save(working_target, "JPEG", quality=95)
             fit_mode = extra.get("fit", "cover")
             rot_front = int(extra.get("rot_front", 0))
             rot_back = int(extra.get("rot_back", 0))
@@ -1227,10 +1339,16 @@ async def admin_camscan_order_file(order_id: str, request: Request):
         src_name = extra.get("source_photo") or ""
         src_path = os.path.join(UPLOAD_DIR, src_name) if src_name else None
         if src_path and os.path.isfile(src_path):
-            with Image.open(src_path) as im:
-                im = ImageOps.exif_transpose(im).convert("RGB")
-                enhanced = image_fx.camscanner_process(im, mode=mode)
-                enhanced.save(src_path, "JPEG", quality=95)
+            p_photo = os.path.join(UPLOAD_DIR, f"pristine_{src_name}")
+            src_to_read = p_photo if os.path.isfile(p_photo) else src_path
+            if mode == "original":
+                if os.path.isfile(p_photo) and p_photo != src_path:
+                    shutil.copy2(p_photo, src_path)
+            else:
+                with Image.open(src_to_read) as im:
+                    im = ImageOps.exif_transpose(im).convert("RGB")
+                    enhanced = image_fx.camscanner_process(im, mode=mode)
+                    enhanced.save(src_path, "JPEG", quality=95)
             sp = studio.sanitize_params(extra.get("studio"))
             p_map = {order_id: src_path}
             sheet, _info = studio.render_sheet(src_path, sp, dpi=300, photos_map=p_map)
@@ -1238,22 +1356,146 @@ async def admin_camscan_order_file(order_id: str, request: Request):
             if storage.is_r2_configured() and os.path.isfile(orig_path):
                 await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
     elif order.get("file_type") == "pdf" and utils.get_ext(orig_path) == "pdf":
-        if all_pages:
-            await asyncio.to_thread(office_docs.apply_camscan_to_all_pdf_pages, orig_path, orig_path, mode)
+        p_file = extra.get("pristine_path") or os.path.join(UPLOAD_DIR, f"pristine_{order['id']}_{os.path.basename(orig_path)}")
+        has_pristine = os.path.isfile(p_file)
+        if mode == "original":
+            if has_pristine:
+                if all_pages:
+                    shutil.copy2(p_file, orig_path)
+                else:
+                    im = await asyncio.to_thread(office_docs.render_pdf_page_pil, p_file, page, 200)
+                    await asyncio.to_thread(office_docs.replace_pdf_page_pil, orig_path, page, im)
         else:
-            im = await asyncio.to_thread(office_docs.render_pdf_page_pil, orig_path, page, 200)
-            im = await asyncio.to_thread(image_fx.camscanner_process, im, mode)
-            await asyncio.to_thread(office_docs.replace_pdf_page_pil, orig_path, page, im)
+            pdf_source = p_file if has_pristine else orig_path
+            if all_pages:
+                await asyncio.to_thread(office_docs.apply_camscan_to_all_pdf_pages, pdf_source, orig_path, mode)
+            else:
+                im = await asyncio.to_thread(office_docs.render_pdf_page_pil, pdf_source, page, 200)
+                im = await asyncio.to_thread(image_fx.camscanner_process, im, mode)
+                await asyncio.to_thread(office_docs.replace_pdf_page_pil, orig_path, page, im)
         office_docs._clear_nup_caches_for(orig_path)
         if storage.is_r2_configured() and os.path.isfile(orig_path):
             await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
     else:
-        with Image.open(orig_path) as im:
-            im = ImageOps.exif_transpose(im).convert("RGB")
-            enhanced = image_fx.camscanner_process(im, mode=mode)
-            enhanced.save(orig_path, "JPEG", quality=95)
+        p_file = extra.get("pristine_path") or os.path.join(UPLOAD_DIR, f"pristine_{order['id']}_{os.path.basename(orig_path)}")
+        has_pristine = os.path.isfile(p_file)
+        src_to_read = p_file if has_pristine else orig_path
+        if mode == "original":
+            if has_pristine and p_file != orig_path:
+                shutil.copy2(p_file, orig_path)
+        else:
+            with Image.open(src_to_read) as im:
+                im = ImageOps.exif_transpose(im).convert("RGB")
+                enhanced = image_fx.camscanner_process(im, mode=mode)
+                enhanced.save(orig_path, "JPEG", quality=95)
         if storage.is_r2_configured() and os.path.isfile(orig_path):
             await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
+
+    await manager.notify_admin(shop["id"], {"event": "ORDER_UPDATED", "order_id": order_id})
+    return {"success": True}
+
+
+@app.post("/admin/order/{order_id}/revert-original")
+async def admin_revert_order_to_original(order_id: str, request: Request):
+    shop = get_current_shop(request)
+    if not shop:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    order = db.get_order(order_id)
+    if not order or order["shop_id"] != shop["id"]:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    ensure_order_pristine_backup(order)
+    extra = {}
+    try:
+        extra = json.loads(order.get("extra_data") or "{}")
+    except Exception:
+        pass
+
+    orig_path = order["file_path"]
+    import shutil
+
+    # 1. NID Card
+    if extra.get("is_nid") or order.get("paper_size") == "NID" or "nid_" in orig_path:
+        token = extra.get("nid_token")
+        if not token and "nid_print_" in orig_path:
+            token = orig_path.split("nid_print_")[1].split(".pdf")[0]
+        if token:
+            front, back = nid_paths(token)
+            p_front = os.path.join(UPLOAD_DIR, f"pristine_nid_{token}_f.jpg")
+            p_back = os.path.join(UPLOAD_DIR, f"pristine_nid_{token}_b.jpg")
+            restored = False
+            if os.path.isfile(p_front):
+                shutil.copy2(p_front, front)
+                restored = True
+            if os.path.isfile(p_back):
+                shutil.copy2(p_back, back)
+                restored = True
+            if not restored:
+                raise HTTPException(status_code=400, detail="অরিজিনাল NID ফাইল পাওয়া যায়নি")
+            extra["rot_front"] = 0
+            extra["rot_back"] = 0
+            color_mode = order.get("customer_color_mode") or order.get("color_mode", "color")
+            fit_mode = extra.get("fit", "cover")
+            await asyncio.to_thread(
+                utils.save_nid_sheet, front, back, orig_path,
+                color_mode=color_mode,
+                fit_mode=fit_mode,
+                rot_front=0,
+                rot_back=0,
+                orientation=order.get("orientation", "portrait")
+            )
+            db.update_order_details(order_id, {
+                "color_mode": color_mode,
+                "extra_data": json.dumps(extra)
+            })
+            if storage.is_r2_configured() and os.path.isfile(orig_path):
+                await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
+
+    # 2. Photo Studio
+    elif extra.get("is_studio") or order.get("paper_size") == "PHOTO" or "studio_" in orig_path:
+        src_name = extra.get("source_photo") or ""
+        src_path = os.path.join(UPLOAD_DIR, src_name) if src_name else None
+        p_photo = os.path.join(UPLOAD_DIR, f"pristine_{src_name}") if src_name else None
+        if src_path and p_photo and os.path.isfile(p_photo):
+            shutil.copy2(p_photo, src_path)
+            sp = studio.sanitize_params(extra.get("studio"))
+            p_map = {order_id: src_path}
+            sheet, _info = studio.render_sheet(src_path, sp, dpi=300, photos_map=p_map)
+            studio.save_sheet_pdf(sheet, orig_path, 300)
+            if storage.is_r2_configured() and os.path.isfile(orig_path):
+                await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
+        else:
+            raise HTTPException(status_code=400, detail="অরিজিনাল স্টুডিও ফটো পাওয়া যায়নি")
+
+    # 3. Document or Image
+    else:
+        p_file = extra.get("pristine_path") or os.path.join(UPLOAD_DIR, f"pristine_{order['id']}_{os.path.basename(orig_path)}")
+        initial_file = extra.get("original_file_path") or orig_path
+        if os.path.isfile(p_file):
+            shutil.copy2(p_file, initial_file)
+            updates = {"file_path": initial_file}
+            if initial_file.lower().endswith(".pdf"):
+                import office_docs
+                office_docs._clear_nup_caches_for(initial_file)
+                updates["file_type"] = "pdf"
+                try:
+                    import pypdf
+                    updates["page_count"] = len(pypdf.PdfReader(initial_file).pages)
+                except Exception:
+                    pass
+            else:
+                updates["file_type"] = "image"
+                updates["page_count"] = 1
+            if orig_path != initial_file and os.path.isfile(orig_path):
+                utils.secure_delete_file(orig_path)
+            db.update_order_details(order_id, updates)
+            if storage.is_r2_configured() and os.path.isfile(initial_file):
+                await asyncio.to_thread(storage.upload_file_to_r2, initial_file)
+        else:
+            raise HTTPException(status_code=400, detail="অরিজিনাল ব্যাকআপ ফাইল পাওয়া যায়নি")
+
+    await manager.notify_admin(shop["id"], {"event": "ORDER_UPDATED", "order_id": order_id})
+    return {"success": True, "message": "কাস্টোমারের আসল ডকুমেন্ট সফলভাবে ফিরিয়ে আনা হয়েছে"}
 
     await manager.notify_admin(shop["id"], {"event": "ORDER_UPDATED", "order_id": order_id})
     return {"success": True}
@@ -2573,6 +2815,10 @@ async def customer_create_order(request: Request):
     }
 
     db.create_order(order_data)
+    try:
+        ensure_order_pristine_backup(order_data)
+    except Exception:
+        pass
 
     # Broadcast new order to Admin dashboard (never expose the server file path)
     public_order = {k: v for k, v in order_data.items() if k != "file_path"}
