@@ -895,9 +895,15 @@ async def edit_order_details(order_id: str, request: Request):
         except (ValueError, TypeError):
             pass
 
-    # If color_mode changed for an NID or Studio order, regenerate printable file
-    if "color_mode" in updates and updates["color_mode"] != order.get("color_mode"):
-        new_color = updates["color_mode"]
+    # If color_mode, paper_size, or orientation changed for an NID or Studio order, regenerate printable file
+    color_changed = "color_mode" in updates and updates["color_mode"] != order.get("color_mode")
+    paper_changed = "paper_size" in updates and updates["paper_size"] != order.get("paper_size")
+    orient_changed = "orientation" in updates and updates["orientation"] != order.get("orientation")
+
+    if color_changed or paper_changed or orient_changed:
+        new_color = updates.get("color_mode") or order.get("color_mode", "color")
+        new_paper = updates.get("paper_size") or order.get("paper_size", "A4")
+        new_orient = updates.get("orientation") or order.get("orientation", "portrait")
         orig_path = order["file_path"]
         extra = {}
         try:
@@ -916,7 +922,7 @@ async def edit_order_details(order_id: str, request: Request):
                     fit_mode=extra.get("fit", "cover"),
                     rot_front=int(extra.get("rot_front", 0)),
                     rot_back=int(extra.get("rot_back", 0)),
-                    orientation=updates.get("orientation") or order.get("orientation", "portrait")
+                    orientation=new_orient
                 )
                 if storage.is_r2_configured() and os.path.isfile(orig_path):
                     await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
@@ -926,6 +932,7 @@ async def edit_order_details(order_id: str, request: Request):
             if src_path and os.path.isfile(src_path):
                 sp = studio.sanitize_params(extra.get("studio"))
                 sp["bw"] = (new_color == "bw")
+                sp["paper"] = "4x6" if new_paper == "4x6" else "A4"
                 extra["studio"] = sp
                 updates["extra_data"] = json.dumps(extra)
                 p_map = {order_id: src_path}
@@ -1596,6 +1603,7 @@ async def admin_update_order_studio(order_id: str, request: Request):
     extra["studio"] = sp
     db.update_order_details(order_id, {
         "color_mode": "bw" if sp["bw"] else "color",
+        "paper_size": "4x6" if sp["paper"] == "4x6" else ("PHOTO" if order.get("paper_size") == "PHOTO" else "A4"),
         "total_price": round(total_price, 2),
         "extra_data": json.dumps(extra)
     })
@@ -1603,7 +1611,7 @@ async def admin_update_order_studio(order_id: str, request: Request):
         await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
 
     await manager.notify_admin(shop["id"], {"event": "ORDER_UPDATED", "order_id": order_id})
-    return {"success": True, "total_price": total_price}
+    return {"success": True, "total_price": round(total_price, 2), "studio": sp}
 
 @app.get("/admin/order/{order_id}/file")
 async def admin_download_order_file(order_id: str, request: Request, inline: int = 0, json_url: int = 0, local: int = 0):
@@ -1676,13 +1684,29 @@ def admin_preview_order_sheet(
             raise HTTPException(status_code=501, detail="PDF preview renderer unavailable")
         try:
             data = utils.render_pdf_page_preview(path, max(0, page - 1), eff_color, orientation=eff_orient)
-            return Response(content=data, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=120"})
+            return Response(
+                content=data,
+                media_type="image/jpeg",
+                headers={
+                    "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+                    "Pragma": "no-cache",
+                    "Expires": "0"
+                }
+            )
         except Exception as e:
             raise HTTPException(status_code=422, detail=str(e))
     else:
         p_mode = "4x6" if eff_paper == "4x6" else "A4"
         data = utils.render_image_preview(path, p_mode, eff_color, orientation=eff_orient)
-        return Response(content=data, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=120"})
+        return Response(
+            content=data,
+            media_type="image/jpeg",
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+                "Pragma": "no-cache",
+                "Expires": "0"
+            }
+        )
 
 
 @app.get("/admin/printers")

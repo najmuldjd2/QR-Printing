@@ -595,13 +595,16 @@
           <div id="editOrderStudioSection" class="hidden w-full p-2.5 bg-pink-50/70 rounded-xl border border-pink-200 space-y-2">
             <div class="flex items-center justify-between text-pink-950 font-bold text-xs">
               <span class="flex items-center gap-1"><span>📸</span> <span>ফটো স্টুডিও এডিটর</span></span>
-              <button type="button" onclick="openOrderStudioCrop()" class="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-[10px] shadow-xs flex items-center gap-1">
-                <span>✂️</span> <span>মূল ছবি ক্রপ</span>
-              </button>
+              <div class="flex items-center gap-1.5">
+                <span id="editOrderStudioSaveStatus" class="hidden text-[10px] text-pink-700 font-bold bg-pink-100 px-2 py-0.5 rounded-full animate-pulse">⏳ শিট আপডেট হচ্ছে...</span>
+                <button type="button" onclick="openOrderStudioCrop()" class="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-[10px] shadow-xs flex items-center gap-1">
+                  <span>✂️</span> <span>মূল ছবি ক্রপ</span>
+                </button>
+              </div>
             </div>
-            <div id="editOrderStudioItemsContainer" class="space-y-1.5 max-h-40 overflow-y-auto"></div>
-            <button type="button" onclick="addEditOrderStudioRow()" class="w-full py-1 border border-dashed border-pink-400 text-pink-700 bg-white rounded-lg text-xs font-bold hover:bg-pink-50">
-              ➕ আরো সাইজ যোগ করুন
+            <div id="editOrderStudioItemsContainer" class="space-y-1.5 max-h-56 overflow-y-auto pr-0.5"></div>
+            <button type="button" onclick="addEditOrderStudioRow()" class="w-full py-1.5 border-2 border-dashed border-pink-400 text-pink-700 bg-white rounded-xl text-xs font-bold hover:bg-pink-50 transition flex items-center justify-center gap-1">
+              <span>➕</span> <span>আরো সাইজ যোগ করুন</span>
             </button>
             <div class="grid grid-cols-2 gap-2 pt-1 border-t border-pink-200 text-[10px]">
               <div>
@@ -637,14 +640,14 @@
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="block font-semibold text-gray-600 mb-1">কপি সংখ্যা</label>
-              <input type="number" id="editCopies" min="1" max="100" oninput="refreshAdminEditPreview()" class="w-full px-3 py-2 border rounded-lg text-sm font-bold">
+              <input type="number" id="editCopies" min="1" max="100" oninput="onAdminEditCopiesChange()" class="w-full px-3 py-2 border rounded-lg text-sm font-bold">
             </div>
             <div>
               <div class="flex items-center justify-between mb-1">
                 <label class="block font-semibold text-gray-600">কালার মোড</label>
                 <span id="editModalCustomerColorBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700"></span>
               </div>
-              <select id="editColorMode" onchange="refreshAdminEditPreview()" class="w-full px-3 py-2 border rounded-lg text-sm bg-white font-bold">
+              <select id="editColorMode" onchange="onAdminEditColorModeChange()" class="w-full px-3 py-2 border rounded-lg text-sm bg-white font-bold">
                 <option value="color">কালার (Color)</option>
                 <option value="bw">সাদাকালো (B&W)</option>
               </select>
@@ -654,7 +657,7 @@
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="block font-semibold text-gray-600 mb-1">পেপার সাইজ</label>
-              <select id="editPaperSize" onchange="refreshAdminEditPreview()" class="w-full px-3 py-2 border rounded-lg text-sm bg-white font-bold">
+              <select id="editPaperSize" onchange="onAdminEditPaperSizeChange()" class="w-full px-3 py-2 border rounded-lg text-sm bg-white font-bold">
                 <option value="A4">A4 সাধারণ পেপার</option>
                 <option value="4x6">৪×৬ ফটো পেপার</option>
                 <option value="NID">NID / ID কার্ড আসল সাইজ</option>
@@ -1376,8 +1379,51 @@
       refreshAdminEditPreview();
     }
 
-    function refreshAdminEditPreview() {
+    let editPreviewVersion = Date.now();
+
+    function onAdminEditCopiesChange() {
+      let extra = {};
+      try { extra = JSON.parse((currentEditingOrder && currentEditingOrder.extra_data) || '{}'); } catch(e) {}
+      const isStudio = !!(extra.is_studio || (currentEditingOrder && currentEditingOrder.paper_size === 'PHOTO') || (currentEditingOrder && currentEditingOrder.file_path && currentEditingOrder.file_path.includes('studio_')));
+      if (isStudio) {
+        triggerEditOrderStudioChange();
+      } else {
+        refreshAdminEditPreview(false);
+      }
+    }
+
+    function onAdminEditColorModeChange() {
+      let extra = {};
+      try { extra = JSON.parse((currentEditingOrder && currentEditingOrder.extra_data) || '{}'); } catch(e) {}
+      const isStudio = !!(extra.is_studio || (currentEditingOrder && currentEditingOrder.paper_size === 'PHOTO') || (currentEditingOrder && currentEditingOrder.file_path && currentEditingOrder.file_path.includes('studio_')));
+      const isNid = !!(extra.is_nid || (currentEditingOrder && currentEditingOrder.paper_size === 'NID') || (currentEditingOrder && currentEditingOrder.file_path && currentEditingOrder.file_path.includes('nid_')));
+
+      if (isStudio) {
+        triggerEditOrderStudioChange();
+      } else if (isNid) {
+        setOrderNidFit(extra.fit || 'cover');
+      } else {
+        refreshAdminEditPreview(true);
+      }
+    }
+
+    function onAdminEditPaperSizeChange() {
+      let extra = {};
+      try { extra = JSON.parse((currentEditingOrder && currentEditingOrder.extra_data) || '{}'); } catch(e) {}
+      const isStudio = !!(extra.is_studio || (currentEditingOrder && currentEditingOrder.paper_size === 'PHOTO') || (currentEditingOrder && currentEditingOrder.file_path && currentEditingOrder.file_path.includes('studio_')));
+
+      if (isStudio) {
+        triggerEditOrderStudioChange();
+      } else {
+        refreshAdminEditPreview(true);
+      }
+    }
+
+    function refreshAdminEditPreview(bustCache = false) {
       if (!currentEditingOrderId) return;
+      if (bustCache) {
+        editPreviewVersion = Date.now();
+      }
       const color = document.getElementById('editColorMode').value || 'color';
       const paper = document.getElementById('editPaperSize').value || 'A4';
       const duplex = document.getElementById('editDuplex').value || 'single';
@@ -1435,7 +1481,7 @@
       }
 
       if (img && loader) {
-        const nextPreviewUrl = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/preview?color=${encodeURIComponent(color)}&orientation=${encodeURIComponent(orient)}&paper_size=${encodeURIComponent(paper)}&page=${editPreviewPage}`;
+        const nextPreviewUrl = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/preview?color=${encodeURIComponent(color)}&orientation=${encodeURIComponent(orient)}&paper_size=${encodeURIComponent(paper)}&page=${editPreviewPage}&v=${editPreviewVersion}`;
         if (lastEditPreviewUrl !== nextPreviewUrl) {
           lastEditPreviewUrl = nextPreviewUrl;
           loader.classList.remove('hidden');
@@ -1453,6 +1499,7 @@
       currentEditingOrder = order;
       currentEditingOrderId = order.id;
       editPreviewPage = 1;
+      editPreviewVersion = Date.now();
       lastEditPreviewUrl = '';
       document.getElementById('editModalOrderId').innerText = `Order ID: #${order.id}`;
       document.getElementById('editModalFilename').innerText = order.original_filename || 'document';
@@ -1495,9 +1542,36 @@
         updateOrderNidFitBtnUI(extra.fit || 'cover');
       } else if (isStudio) {
         const sp = extra.studio || {};
-        editOrderStudioItems = Array.isArray(sp.items) && sp.items.length > 0
+        if (sp.paper === '4x6') {
+          document.getElementById('editPaperSize').value = '4x6';
+        } else if (order.paper_size === '4x6' || order.paper_size === 'A4') {
+          document.getElementById('editPaperSize').value = order.paper_size;
+        } else {
+          document.getElementById('editPaperSize').value = 'A4';
+        }
+        if (sp.bw) {
+          document.getElementById('editColorMode').value = 'bw';
+        } else {
+          document.getElementById('editColorMode').value = order.color_mode || 'color';
+        }
+        editOrderStudioItems = (Array.isArray(sp.items) && sp.items.length > 0
           ? JSON.parse(JSON.stringify(sp.items))
-          : [{ preset: 'p4555', w: 45, h: 55, count: 6 }];
+          : [{ preset: 'p4555', w: 45, h: 55, count: 6 }]
+        ).map(it => {
+          const matchedPreset = ADMIN_PRESETS.find(p => p.id === it.preset);
+          const w = parseFloat(it.w) || 45;
+          const h = parseFloat(it.h) || 55;
+          const presetId = matchedPreset ? matchedPreset.id : 'custom';
+          return {
+            preset: presetId,
+            w: w,
+            h: h,
+            count: Math.max(1, parseInt(it.count, 10) || 1),
+            unit: it.unit || 'inch',
+            custom_w: it.custom_w || +(w / 25.4).toFixed(2),
+            custom_h: it.custom_h || +(h / 25.4).toFixed(2)
+          };
+        });
         const bEl = document.getElementById('editOrderStudioBrightness');
         const cEl = document.getElementById('editOrderStudioContrast');
         if (bEl) { bEl.value = sp.brightness || 0; document.getElementById('valEditOrderStudioBrightness').innerText = sp.brightness || 0; }
@@ -1506,7 +1580,7 @@
       }
 
       document.getElementById('editOrderModal').classList.remove('hidden');
-      refreshAdminEditPreview();
+      refreshAdminEditPreview(true);
     }
 
     let editModalHasChanges = false;
@@ -1524,6 +1598,14 @@
 
     async function saveOrderEdits(andApprove = false) {
       if (!currentEditingOrderId) return;
+      if (editOrderStudioTimer) {
+        clearTimeout(editOrderStudioTimer);
+        editOrderStudioTimer = null;
+        await saveOrderStudioChanges();
+      }
+      while (isSavingOrderStudio) {
+        await new Promise(r => setTimeout(r, 100));
+      }
       const targetOrderId = currentEditingOrderId;
       const payload = {
         copies: parseInt(document.getElementById('editCopies').value, 10) || 1,
@@ -2679,7 +2761,7 @@
         if (data.success) {
           editModalHasChanges = true;
           lastEditPreviewUrl = '';
-          refreshAdminEditPreview();
+          refreshAdminEditPreview(true);
           showAdminToast('✓ পাতা ৯০° ঘোরানো হয়েছে');
         } else {
           showAdminToast('ঘোরানো সম্ভব হয়নি: ' + (data.detail || ''), 'error');
@@ -2703,7 +2785,7 @@
           const img = document.getElementById(side === 'front' ? 'editNidFrontImg' : 'editNidBackImg');
           if (img) img.src = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?side=${side}&t=${Date.now()}`;
           lastEditPreviewUrl = '';
-          refreshAdminEditPreview();
+          refreshAdminEditPreview(true);
           showAdminToast('✓ NID ' + (side === 'front' ? 'সামনের' : 'পেছনের') + ' পিঠ ৯০° ঘোরানো হয়েছে');
         }
       } catch (e) {
@@ -2724,7 +2806,7 @@
         const data = await res.json();
         if (data.success) {
           lastEditPreviewUrl = '';
-          refreshAdminEditPreview();
+          refreshAdminEditPreview(true);
         }
       } catch (e) {
         console.error('NID fit error:', e);
@@ -2744,29 +2826,143 @@
       }
     }
 
+    function onEditOrderStudioPresetChange(idx, val) {
+      const it = editOrderStudioItems[idx];
+      if (!it) return;
+      it.preset = val;
+      const p = ADMIN_PRESETS.find(x => x.id === val);
+      if (p && val !== 'custom') {
+        it.w = p.w;
+        it.h = p.h;
+        it.custom_w = +(p.w / 25.4).toFixed(2);
+        it.custom_h = +(p.h / 25.4).toFixed(2);
+        it.unit = 'inch';
+      } else if (val === 'custom') {
+        it.unit = it.unit || 'inch';
+        if (!it.custom_w || !it.custom_h) {
+          it.custom_w = +(it.w ? it.w / 25.4 : 2).toFixed(2);
+          it.custom_h = +(it.h ? it.h / 25.4 : 6).toFixed(2);
+        }
+      }
+      renderEditOrderStudioItems();
+      triggerEditOrderStudioChange();
+    }
+
+    function onEditOrderStudioCustomChange(idx) {
+      const it = editOrderStudioItems[idx];
+      if (!it) return;
+      const unitEl = document.getElementById(`editOrderStudioUnit_${idx}`);
+      const wEl = document.getElementById(`editOrderStudioW_${idx}`);
+      const hEl = document.getElementById(`editOrderStudioH_${idx}`);
+      if (!unitEl || !wEl || !hEl) return;
+
+      const unit = unitEl.value || 'inch';
+      const rawW = parseFloat(wEl.value) || 0;
+      const rawH = parseFloat(hEl.value) || 0;
+      it.unit = unit;
+      it.custom_w = rawW;
+      it.custom_h = rawH;
+
+      let w_mm = 0, h_mm = 0;
+      if (unit === 'inch') {
+        w_mm = rawW * 25.4;
+        h_mm = rawH * 25.4;
+      } else if (unit === 'px') {
+        w_mm = (rawW / 300) * 25.4;
+        h_mm = (rawH / 300) * 25.4;
+      } else {
+        w_mm = rawW;
+        h_mm = rawH;
+      }
+      it.w = Math.max(5, Math.min(205, w_mm));
+      it.h = Math.max(5, Math.min(290, h_mm));
+
+      const sz = computeSizeDisplay(it.w, it.h);
+      const badge = document.getElementById(`editOrderStudioBadge_${idx}`);
+      if (badge) {
+        badge.innerHTML = `📏 <b>${sz.inchStr}"</b> (${sz.mmStr} মিমি | ${sz.pxStr} px) • <span class="text-pink-600 font-bold">${sz.aspectRatio}</span>`;
+      }
+      triggerEditOrderStudioChange();
+    }
+
+    function removeEditOrderStudioRow(idx) {
+      if (editOrderStudioItems.length <= 1) {
+        showAdminToast('কমপক্ষে ১টি সাইজ থাকতে হবে।', 'error');
+        return;
+      }
+      editOrderStudioItems.splice(idx, 1);
+      renderEditOrderStudioItems();
+      triggerEditOrderStudioChange();
+    }
+
+    function addEditOrderStudioRow() {
+      editOrderStudioItems.push({
+        preset: 'stamp',
+        w: 20,
+        h: 25,
+        count: 4,
+        unit: 'inch',
+        custom_w: 0.79,
+        custom_h: 0.98
+      });
+      renderEditOrderStudioItems();
+      triggerEditOrderStudioChange();
+    }
+
     function renderEditOrderStudioItems() {
       const box = document.getElementById('editOrderStudioItemsContainer');
       if (!box) return;
       box.innerHTML = editOrderStudioItems.map((it, idx) => {
+        const isCustom = it.preset === 'custom';
+        const sz = computeSizeDisplay(it.w, it.h);
         return `
-          <div class="p-1.5 bg-white border border-pink-200 rounded-lg flex items-center justify-between gap-1 text-[11px]">
-            <select onchange="editOrderStudioItems[${idx}].preset = this.value; const p = ADMIN_PRESETS.find(x => x.id === this.value); if (p) { editOrderStudioItems[${idx}].w = p.w; editOrderStudioItems[${idx}].h = p.h; } triggerEditOrderStudioChange()" class="flex-1 px-1.5 py-0.5 border rounded text-[11px] font-bold">
-              ${ADMIN_PRESETS.map(p => `<option value="${p.id}" ${p.id === it.preset ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
-            </select>
-            <div class="flex items-center gap-1">
-              <span class="text-gray-500">কপি:</span>
-              <input type="number" min="1" max="60" value="${it.count || 1}" onchange="editOrderStudioItems[${idx}].count = Math.max(1, parseInt(this.value, 10) || 1); triggerEditOrderStudioChange()" class="w-10 px-1 py-0.5 border rounded text-center font-bold text-[11px]">
-              ${editOrderStudioItems.length > 1 ? `<button type="button" onclick="editOrderStudioItems.splice(${idx}, 1); renderEditOrderStudioItems(); triggerEditOrderStudioChange()" class="text-red-500 font-bold px-1">&times;</button>` : ''}
+          <div class="p-2 bg-white border border-pink-200 rounded-xl space-y-1.5 shadow-2xs">
+            <div class="flex items-center justify-between gap-1.5">
+              <div class="flex-1 min-w-0">
+                <select onchange="onEditOrderStudioPresetChange(${idx}, this.value)" class="w-full px-2 py-1 border border-pink-300 rounded-lg bg-pink-50/40 font-bold text-gray-800 text-xs">
+                  ${ADMIN_PRESETS.map(p => `<option value="${p.id}" ${p.id === it.preset ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
+                </select>
+              </div>
+              <div class="flex items-center gap-1 shrink-0">
+                <span class="text-gray-500 font-semibold text-[11px]">কপি:</span>
+                <input type="number" min="1" max="60" value="${it.count || 1}" onchange="editOrderStudioItems[${idx}].count = Math.max(1, Math.min(60, parseInt(this.value, 10) || 1)); triggerEditOrderStudioChange()" class="w-12 px-1.5 py-0.5 border border-pink-300 rounded-lg text-center font-bold text-xs bg-white">
+                ${editOrderStudioItems.length > 1 ? `<button type="button" onclick="removeEditOrderStudioRow(${idx})" class="p-1 text-red-500 hover:text-red-700 font-bold text-base leading-none" title="সাইজ মুছুন">&times;</button>` : ''}
+              </div>
             </div>
+
+            ${isCustom ? `
+            <div class="p-2 bg-pink-50/60 rounded-lg border border-pink-200 space-y-1">
+              <div class="flex items-center justify-between gap-1 text-[11px]">
+                <span class="font-bold text-gray-700">কাস্টম মাপ:</span>
+                <select id="editOrderStudioUnit_${idx}" onchange="onEditOrderStudioCustomChange(${idx})" class="px-1.5 py-0.5 border border-pink-300 rounded text-[11px] font-bold bg-white text-pink-900">
+                  <option value="inch" ${it.unit === 'inch' ? 'selected' : ''}>ইঞ্চি (inch)</option>
+                  <option value="px" ${it.unit === 'px' ? 'selected' : ''}>পিক্সেল (px @ 300 DPI)</option>
+                  <option value="mm" ${it.unit === 'mm' ? 'selected' : ''}>মিমি (mm)</option>
+                </select>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <div class="flex-1">
+                  <label class="block text-[9px] text-gray-500 font-bold text-center">প্রস্থ (W)</label>
+                  <input type="number" step="any" id="editOrderStudioW_${idx}" value="${it.custom_w || ''}" oninput="onEditOrderStudioCustomChange(${idx})" placeholder="যেমন 2" class="w-full px-2 py-1 border border-pink-300 rounded text-xs font-bold text-center bg-white">
+                </div>
+                <span class="text-gray-400 font-bold pt-3">×</span>
+                <div class="flex-1">
+                  <label class="block text-[9px] text-gray-500 font-bold text-center">উচ্চতা (H)</label>
+                  <input type="number" step="any" id="editOrderStudioH_${idx}" value="${it.custom_h || ''}" oninput="onEditOrderStudioCustomChange(${idx})" placeholder="যেমন 6" class="w-full px-2 py-1 border border-pink-300 rounded text-xs font-bold text-center bg-white">
+                </div>
+              </div>
+              <div id="editOrderStudioBadge_${idx}" class="text-[10px] text-gray-600 bg-white px-2 py-0.5 rounded border border-pink-200 text-center font-mono mt-1">
+                📏 <b>${sz.inchStr}"</b> (${sz.mmStr} মিমি | ${sz.pxStr} px) • <span class="text-pink-600 font-bold">${sz.aspectRatio}</span>
+              </div>
+            </div>
+            ` : `
+            <div class="text-[10px] text-gray-500 bg-pink-50/50 px-2 py-0.5 rounded text-center font-mono">
+              📏 ${sz.inchStr}" (${sz.mmStr} মিমি) • <span class="text-pink-600 font-bold">${sz.aspectRatio}</span>
+            </div>
+            `}
           </div>
         `;
       }).join('');
-    }
-
-    function addEditOrderStudioRow() {
-      editOrderStudioItems.push({ preset: 'stamp', w: 20, h: 25, count: 4 });
-      renderEditOrderStudioItems();
-      triggerEditOrderStudioChange();
     }
 
     function triggerEditOrderStudioChange() {
@@ -2774,8 +2970,24 @@
       editOrderStudioTimer = setTimeout(saveOrderStudioChanges, 300);
     }
 
+    let isSavingOrderStudio = false;
+    let pendingOrderStudioSave = false;
+
     async function saveOrderStudioChanges() {
       if (!currentEditingOrderId) return;
+      if (isSavingOrderStudio) {
+        pendingOrderStudioSave = true;
+        return;
+      }
+      isSavingOrderStudio = true;
+      pendingOrderStudioSave = false;
+
+      const saveStatusIndicator = document.getElementById('editOrderStudioSaveStatus');
+      if (saveStatusIndicator) {
+        saveStatusIndicator.innerText = '⏳ শিট আপডেট হচ্ছে...';
+        saveStatusIndicator.classList.remove('hidden');
+      }
+
       const paper = document.getElementById('editPaperSize').value === '4x6' ? '4x6' : 'A4';
       const color = document.getElementById('editColorMode').value || 'color';
       const brightness = parseInt(document.getElementById('editOrderStudioBrightness').value, 10) || 0;
@@ -2789,10 +3001,13 @@
         fill: 'cover',
         border: 0.5,
         items: editOrderStudioItems.map(it => ({
-          preset: it.preset,
-          w: it.w,
-          h: it.h,
-          count: it.count || 1,
+          preset: it.preset || 'p4555',
+          w: Math.max(5, parseFloat(it.w) || 45),
+          h: Math.max(5, parseFloat(it.h) || 55),
+          count: Math.max(1, parseInt(it.count, 10) || 1),
+          unit: it.unit || 'inch',
+          custom_w: it.custom_w || 2,
+          custom_h: it.custom_h || 6,
           photo_idx: 0
         }))
       };
@@ -2805,14 +3020,37 @@
         });
         const data = await res.json();
         if (data.success) {
+          editModalHasChanges = true;
+          if (currentEditingOrder) {
+            let extra = {};
+            try { extra = JSON.parse(currentEditingOrder.extra_data || '{}'); } catch(e) {}
+            extra.studio = studioPayload;
+            currentEditingOrder.extra_data = JSON.stringify(extra);
+            currentEditingOrder.total_price = data.total_price;
+            currentEditingOrder.color_mode = color;
+            currentEditingOrder.paper_size = paper;
+          }
           if (data.total_price) {
             document.getElementById('editTotalPrice').value = data.total_price;
           }
           lastEditPreviewUrl = '';
-          refreshAdminEditPreview();
+          refreshAdminEditPreview(true);
+        } else {
+          showAdminToast('স্টুডিও আপডেট ব্যর্থ: ' + (data.detail || ''), 'error');
         }
       } catch (e) {
         console.error('Update studio error:', e);
+      } finally {
+        isSavingOrderStudio = false;
+        if (saveStatusIndicator) {
+          saveStatusIndicator.innerText = '✓ শিট প্রস্তুত';
+          setTimeout(() => {
+            if (!isSavingOrderStudio && saveStatusIndicator) saveStatusIndicator.classList.add('hidden');
+          }, 1500);
+        }
+        if (pendingOrderStudioSave) {
+          saveOrderStudioChanges();
+        }
       }
     }
 
@@ -2996,7 +3234,7 @@
           editModalHasChanges = true;
           closeAdminCamscanModal();
           lastEditPreviewUrl = '';
-          refreshAdminEditPreview();
+          refreshAdminEditPreview(true);
           const fImg = document.getElementById('editNidFrontImg');
           const bImg = document.getElementById('editNidBackImg');
           if (fImg) fImg.src = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?side=front&t=${Date.now()}`;
@@ -3031,7 +3269,7 @@
           closeAdminCamscanModal();
           editModalHasChanges = true;
           lastEditPreviewUrl = '';
-          refreshAdminEditPreview();
+          refreshAdminEditPreview(true);
           const fImg = document.getElementById('editNidFrontImg');
           const bImg = document.getElementById('editNidBackImg');
           if (fImg) fImg.src = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?side=front&t=${Date.now()}`;
@@ -3670,7 +3908,7 @@
           const img = document.getElementById(side === 'front' ? 'editNidFrontImg' : 'editNidBackImg');
           if (img) img.src = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?side=${side}&t=${Date.now()}`;
           lastEditPreviewUrl = '';
-          refreshAdminEditPreview();
+          refreshAdminEditPreview(true);
           showAdminToast('✓ NID কার্ড ক্রপ ও সোজা করা হয়েছে!');
         } else if (adminActiveCropTarget === 'order_studio') {
           if (!currentEditingOrderId) throw new Error('কোনো অর্ডার আইডি পাওয়া যায়নি');
@@ -3684,7 +3922,7 @@
           editModalHasChanges = true;
           closeAdminOrderCropModal();
           lastEditPreviewUrl = '';
-          refreshAdminEditPreview();
+          refreshAdminEditPreview(true);
           showAdminToast('✓ ফটো সফলভাবে ক্রপ ও শিট আপডেট করা হয়েছে!');
         } else if (adminActiveCropTarget === 'studio') {
           resultCanvas.toBlob(blob => {
