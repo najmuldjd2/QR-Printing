@@ -162,9 +162,13 @@
                 </td>
                 <td class="px-5 py-4">
                   <span class="font-bold">{{ o.page_count }} পেজ</span> × {{ o.copies }} কপি
-                  <div class="text-gray-500 text-[11px]">
-                    {{ "সাদাকালো" if o.color_mode == "bw" else "কালার" }} • 
-                    {{ "এক পিঠ" if o.duplex == "single" else "উভয় পিঠ" }} • 
+                  <div class="text-gray-500 text-[11px] mt-0.5">
+                    {% if o.color_mode == 'bw' %}
+                      <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-700">সাদাকালো</span>
+                    {% else %}
+                      <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-pink-100 text-pink-700">কালার</span>
+                    {% endif %}
+                    • {{ "এক পিঠ" if o.duplex == "single" else "উভয় পিঠ" }} • 
                     {{ o.paper_size }} ({{ "Landscape" if o.orientation == "landscape" else "Portrait" }})
                   </div>
                   <div class="mt-1">
@@ -274,9 +278,13 @@
                 </td>
                 <td class="px-5 py-3.5">
                   <span class="font-bold">{{ o.page_count }} পেজ</span> × {{ o.copies }} কপি
-                  <div class="text-gray-500 text-[11px]">
-                    {{ "সাদাকালো" if o.color_mode == "bw" else "কালার" }} • 
-                    {{ "এক পিঠ" if o.duplex == "single" else "উভয় পিঠ" }} • 
+                  <div class="text-gray-500 text-[11px] mt-0.5">
+                    {% if o.color_mode == 'bw' %}
+                      <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-700">সাদাকালো</span>
+                    {% else %}
+                      <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-pink-100 text-pink-700">কালার</span>
+                    {% endif %}
+                    • {{ "এক পিঠ" if o.duplex == "single" else "উভয় পিঠ" }} • 
                     {{ o.paper_size }} ({{ "Landscape" if o.orientation == "landscape" else "Portrait" }})
                   </div>
                   {% if o.printer_target %}
@@ -621,10 +629,10 @@
               <input type="number" id="editCopies" min="1" max="100" oninput="refreshAdminEditPreview()" class="w-full px-3 py-2 border rounded-lg text-sm font-bold">
             </div>
             <div>
-              <label class="block font-semibold text-gray-600 mb-1">প্রিন্ট মোড (কালার/B&W)</label>
+              <label class="block font-semibold text-gray-600 mb-1">কালার মোড (কালার/B&W)</label>
               <select id="editColorMode" onchange="refreshAdminEditPreview()" class="w-full px-3 py-2 border rounded-lg text-sm bg-white font-bold">
+                <option value="color">কালার (Color)</option>
                 <option value="bw">সাদাকালো (B&W)</option>
-                <option value="color">রঙিন (Color)</option>
               </select>
             </div>
           </div>
@@ -951,8 +959,8 @@
                 <div>
                   <label class="block font-bold text-gray-700 mb-1">রঙ:</label>
                   <select id="adminNidColor" class="w-full px-2.5 py-1.5 border rounded-lg bg-white font-bold text-gray-800">
+                    <option value="color">কালার (Color)</option>
                     <option value="bw">সাদাকালো (B&W)</option>
-                    <option value="color">রঙিন (Color)</option>
                   </select>
                 </div>
                 <div>
@@ -1302,7 +1310,7 @@
 
     function refreshAdminEditPreview() {
       if (!currentEditingOrderId) return;
-      const color = document.getElementById('editColorMode').value || 'bw';
+      const color = document.getElementById('editColorMode').value || 'color';
       const paper = document.getElementById('editPaperSize').value || 'A4';
       const duplex = document.getElementById('editDuplex').value || 'single';
       const orient = document.getElementById('editOrientation').value || 'portrait';
@@ -1382,7 +1390,7 @@
       document.getElementById('editModalFilename').innerText = order.original_filename || 'document';
       document.getElementById('editModalDownloadLink').href = `/admin/order/${order.id}/file`;
       document.getElementById('editCopies').value = order.copies || 1;
-      document.getElementById('editColorMode').value = order.color_mode || 'bw';
+      document.getElementById('editColorMode').value = order.color_mode || 'color';
       document.getElementById('editPaperSize').value = order.paper_size || 'A4';
       document.getElementById('editDuplex').value = order.duplex || 'single';
       document.getElementById('editPageRange').value = order.page_range || 'all';
@@ -1497,8 +1505,10 @@
         </td>
         <td class="px-6 py-4">
           <span class="font-bold">${o.page_count} পেজ</span> × ${o.copies} কপি
-          <div class="text-gray-500 text-[11px]">
-            ${o.color_mode === 'bw' ? 'সাদাকালো' : 'কালার'} • 
+          <div class="text-gray-500 text-[11px] mt-0.5">
+            ${o.color_mode === 'bw' 
+              ? '<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-700">সাদাকালো</span>' 
+              : '<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-pink-100 text-pink-700">কালার</span>'} • 
             ${o.duplex === 'single' ? 'এক পিঠ' : 'উভয় পিঠ'} • 
             ${esc(o.paper_size)} (${o.orientation === 'landscape' ? 'Landscape' : 'Portrait'})
           </div>
@@ -2473,7 +2483,7 @@
           return;
         }
 
-        const color = document.getElementById('adminNidColor').value || 'bw';
+        const color = document.getElementById('adminNidColor').value || 'color';
         const targetPrinter = document.getElementById('adminNidPrinterSelect').value || '';
         const orderPayload = {
           file_id: upData.file_id,
@@ -2607,7 +2617,7 @@
     async function setOrderNidFit(fit) {
       if (!currentEditingOrderId) return;
       updateOrderNidFitBtnUI(fit);
-      const color = document.getElementById('editColorMode').value || 'bw';
+      const color = document.getElementById('editColorMode').value || 'color';
       try {
         const res = await fetch(`/admin/order/${encodeURIComponent(currentEditingOrderId)}/update-nid`, {
           method: 'POST',

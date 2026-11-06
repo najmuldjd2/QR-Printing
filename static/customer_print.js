@@ -209,7 +209,7 @@
     const orientNote = $('docPaperOrientNote');
     const isBw = currentMode === 'studio'
       ? ($('studioBw') && $('studioBw').value === '1')
-      : ((checked('color_mode') || 'bw') === 'bw');
+      : ((checked('color_mode') || 'color') === 'bw');
     const orient = checked('orientation') || 'portrait';
     const colorParam = isBw ? 'bw' : 'color';
 
@@ -439,7 +439,7 @@
 
   function nidPreviewUrl(width) {
     const orient = checked('orientation') || 'portrait';
-    return `/api/nid-preview/${uploadedFile.nid_token}?color=${checked('color_mode') || 'bw'}` +
+    return `/api/nid-preview/${uploadedFile.nid_token}?color=${checked('color_mode') || 'color'}` +
       `&fit=${checked('nid_fit') || 'cover'}&rf=${nidRot.front}&rb=${nidRot.back}` +
       `&orientation=${orient}&w=${width}&t=${Date.now()}`;
   }
@@ -636,7 +636,7 @@
   function calculateBill() {
     if (!uploadedFile) return;
     const copies = parseInt(inputCopies.value, 10);
-    const color = checked('color_mode') || 'bw';
+    const color = checked('color_mode') || 'color';
     const colorBn = color === 'bw' ? 'সাদাকালো' : 'রঙিন';
     let total = 0;
 
@@ -1300,7 +1300,7 @@
 
     $('previewModalFileName').innerText = uploadedFile.original_filename;
     $('previewModalTotal').innerText = totalPriceText.innerText;
-    const color = checked('color_mode') || 'bw';
+    const color = checked('color_mode') || 'color';
     const badge = $('previewModeBadge');
     badge.innerText = color === 'bw' ? 'সাদাকালো (B&W)' : 'রঙিন (Color)';
     badge.className = 'text-[11px] px-2.5 py-0.5 rounded-full font-bold shrink-0 ' +
@@ -1652,7 +1652,7 @@
       copies: parseInt((currentMode === 'studio' ? $('studioCopies') : inputCopies).value, 10),
       paper_size: isNid ? 'NID' : (currentMode === 'studio' ? 'PHOTO' : 'A4'),
       studio: currentMode === 'studio' ? studioParams() : undefined,
-      color_mode: currentMode === 'studio' ? (studioParams().bw ? 'bw' : 'color') : checked('color_mode'),
+      color_mode: currentMode === 'studio' ? (studioParams().bw ? 'bw' : 'color') : (checked('color_mode') || 'color'),
       duplex: isNid ? 'single' : checked('duplex'),
       pages_per_sheet: (!isNid && uploadedFile.file_type === 'pdf') ? parseInt(checked('pages_per_sheet') || '1', 10) : 1,
       nid_fit: checked('nid_fit') || 'cover',

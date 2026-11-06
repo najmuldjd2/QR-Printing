@@ -895,6 +895,45 @@ async def edit_order_details(order_id: str, request: Request):
         except (ValueError, TypeError):
             pass
 
+    # If color_mode changed for an NID or Studio order, regenerate printable file
+    if "color_mode" in updates and updates["color_mode"] != order.get("color_mode"):
+        new_color = updates["color_mode"]
+        orig_path = order["file_path"]
+        extra = {}
+        try:
+            extra = json.loads(order.get("extra_data") or "{}")
+        except Exception:
+            pass
+        if extra.get("is_nid") or order.get("paper_size") == "NID" or "nid_" in orig_path:
+            token = extra.get("nid_token")
+            if not token and "nid_print_" in orig_path:
+                token = orig_path.split("nid_print_")[1].split(".pdf")[0]
+            if token:
+                front, back = nid_paths(token)
+                await asyncio.to_thread(
+                    utils.save_nid_sheet, front, back, orig_path,
+                    color_mode=new_color,
+                    fit_mode=extra.get("fit", "cover"),
+                    rot_front=int(extra.get("rot_front", 0)),
+                    rot_back=int(extra.get("rot_back", 0)),
+                    orientation=updates.get("orientation") or order.get("orientation", "portrait")
+                )
+                if storage.is_r2_configured() and os.path.isfile(orig_path):
+                    await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
+        elif extra.get("is_studio") or order.get("paper_size") == "PHOTO" or "studio_" in orig_path:
+            src_name = extra.get("source_photo") or ""
+            src_path = os.path.join(UPLOAD_DIR, src_name) if src_name else None
+            if src_path and os.path.isfile(src_path):
+                sp = studio.sanitize_params(extra.get("studio"))
+                sp["bw"] = (new_color == "bw")
+                extra["studio"] = sp
+                updates["extra_data"] = json.dumps(extra)
+                p_map = {order_id: src_path}
+                sheet, _info = studio.render_sheet(src_path, sp, dpi=300, photos_map=p_map)
+                studio.save_sheet_pdf(sheet, orig_path, 300)
+                if storage.is_r2_configured() and os.path.isfile(orig_path):
+                    await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
+
     db.update_order_details(order_id, updates)
     await manager.notify_admin(shop["id"], {"event": "ORDER_UPDATED", "order_id": order_id})
     return {"success": True, "updated": updates}
@@ -997,7 +1036,7 @@ async def admin_save_order_crop(order_id: str, request: Request):
             fit_mode = extra.get("fit", "cover")
             rot_front = int(extra.get("rot_front", 0))
             rot_back = int(extra.get("rot_back", 0))
-            color_mode = order.get("color_mode", "bw")
+            color_mode = order.get("color_mode", "color")
             await asyncio.to_thread(
                 utils.save_nid_sheet, front, back, orig_path,
                 color_mode=color_mode,
@@ -1080,7 +1119,7 @@ async def admin_rotate_order_file(order_id: str, request: Request):
             fit_mode = extra.get("fit", "cover")
             rot_front = int(extra.get("rot_front", 0))
             rot_back = int(extra.get("rot_back", 0))
-            color_mode = order.get("color_mode", "bw")
+            color_mode = order.get("color_mode", "color")
             await asyncio.to_thread(
                 utils.save_nid_sheet, front, back, orig_path,
                 color_mode=color_mode,
@@ -1173,7 +1212,7 @@ async def admin_camscan_order_file(order_id: str, request: Request):
             fit_mode = extra.get("fit", "cover")
             rot_front = int(extra.get("rot_front", 0))
             rot_back = int(extra.get("rot_back", 0))
-            color_mode = order.get("color_mode", "bw")
+            color_mode = order.get("color_mode", "color")
             await asyncio.to_thread(
                 utils.save_nid_sheet, front, back, orig_path,
                 color_mode=color_mode,
@@ -1231,7 +1270,7 @@ async def admin_update_order_nid(order_id: str, request: Request):
 
     body = await request.json()
     fit = clean_choice(body.get("fit"), ("cover", "contain"), "cover")
-    color = clean_choice(body.get("color_mode"), ("color", "bw"), order.get("color_mode", "bw"))
+    color = clean_choice(body.get("color_mode"), ("color", "bw"), order.get("color_mode", "color"))
 
     extra = {}
     try:
@@ -1385,7 +1424,7 @@ def admin_preview_order_sheet(
     if not os.path.isfile(path):
         raise HTTPException(status_code=404, detail="File not found or already printed")
 
-    eff_color = clean_choice(color or order.get("color_mode", "bw"), ("bw", "color"), "bw")
+    eff_color = clean_choice(color or order.get("color_mode", "color"), ("bw", "color"), "color")
     eff_orient = clean_choice(orientation or order.get("orientation", "portrait"), ("portrait", "landscape"), "portrait")
     eff_paper = clean_choice(paper_size or order.get("paper_size", "A4"), ("A4", "4x6", "NID", "PHOTO"), "A4")
 
@@ -2332,7 +2371,9 @@ async def customer_create_order(request: Request):
         copies = max(1, min(int(data.get("copies", 1)), 100))
     except (TypeError, ValueError):
         copies = 1
-    color_mode = clean_choice(data.get("color_mode"), ("bw", "color"), "bw")
+    # All customer submissions (document, NID, photo) arrive to admin in full color mode by default.
+    # Admin can edit, crop, camscan, and change color mode in the admin panel before printing.
+    color_mode = "color"
     duplex = clean_choice(data.get("duplex"), ("single", "double"), "single")
     paper_size = clean_choice(data.get("paper_size"), ("A4", "4x6", "NID", "PHOTO"), "A4")
     orientation = clean_choice(data.get("orientation"), ("portrait", "landscape"), "portrait")
@@ -2382,6 +2423,7 @@ async def customer_create_order(request: Request):
         if utils.get_ext(src) not in ("jpg", "jpeg", "png"):
             raise HTTPException(status_code=400, detail="ফটো স্টুডিওতে শুধু ছবি ব্যবহার করা যাবে।")
         sp = studio.sanitize_params(data.get("studio"))
+        sp["bw"] = False
         fid_clean = os.path.splitext(file_id)[0]
         file_path = os.path.join(UPLOAD_DIR, f"studio_{fid_clean}.pdf")
 
@@ -2408,7 +2450,7 @@ async def customer_create_order(request: Request):
 
         await asyncio.to_thread(_build)
         file_type, page_count = "pdf", 1
-        color_mode = "bw" if sp["bw"] else "color"
+        color_mode = "color"
         duplex = "single"
         original_filename = f"Photo_Sheet_{sp['paper']}.pdf"
         rate_passport = float(shop.get("rate_passport") or 5.0)
@@ -2576,7 +2618,7 @@ async def customer_get_orders_status(ids: str = ""):
                 "original_filename": o.get("original_filename") or "document",
                 "page_count": o.get("page_count") or 1,
                 "copies": o.get("copies") or 1,
-                "color_mode": o.get("color_mode") or "bw",
+                "color_mode": o.get("color_mode") or "color",
                 "paper_size": o.get("paper_size") or "A4",
                 "total_price": o.get("total_price") or 0,
                 "payment_method": o.get("payment_method") or "counter_cash",

@@ -339,18 +339,18 @@
         <div id="colorModeWrapper">
           <label class="block text-xs font-semibold text-gray-600 mb-1">কালার মোড</label>
           <div class="grid grid-cols-2 gap-2">
-            <label class="border-2 rounded-xl p-2.5 flex items-center justify-between cursor-pointer border-pink-600 bg-pink-50 text-pink-900" id="optBw">
-              <input type="radio" name="color_mode" value="bw" checked class="hidden">
-              <div>
-                <p class="text-sm font-bold">সাদাকালো (B&W)</p>
-                <p class="text-xs text-gray-500">৳{{ shop.rate_bw_single }}/পেজ</p>
-              </div>
-            </label>
-            <label class="border-2 rounded-xl p-2.5 flex items-center justify-between cursor-pointer border-gray-200 text-gray-700" id="optColor">
-              <input type="radio" name="color_mode" value="color" class="hidden">
+            <label class="border-2 rounded-xl p-2.5 flex items-center justify-between cursor-pointer border-pink-600 bg-pink-50 text-pink-900" id="optColor">
+              <input type="radio" name="color_mode" value="color" checked class="hidden">
               <div>
                 <p class="text-sm font-bold">রঙিন (Color)</p>
                 <p class="text-xs text-gray-500">৳{{ shop.rate_color_single }}/পেজ</p>
+              </div>
+            </label>
+            <label class="border-2 rounded-xl p-2.5 flex items-center justify-between cursor-pointer border-gray-200 text-gray-700" id="optBw">
+              <input type="radio" name="color_mode" value="bw" class="hidden">
+              <div>
+                <p class="text-sm font-bold">সাদাকালো (B&W)</p>
+                <p class="text-xs text-gray-500">৳{{ shop.rate_bw_single }}/পেজ</p>
               </div>
             </label>
           </div>
