@@ -2585,6 +2585,72 @@ async def customer_get_orders_status(ids: str = ""):
             })
     return {"orders": result}
 
+
+@app.post("/api/order/{order_id}/cancel")
+async def customer_cancel_order(order_id: str, request: Request):
+    """Allows customer to cancel/delete their print job if it hasn't printed yet, or delete previous jobs from history."""
+    order = db.get_order(order_id)
+    if not order:
+        return {"success": True, "message": "অর্ডারটি ইতিপূর্বে মুছে ফেলা হয়েছে।"}
+
+    # If the print is in progress ('printing'), customer cannot cancel without admin
+    if order["status"] == "printing":
+        raise HTTPException(
+            status_code=400,
+            detail="প্রিন্টারে ফাইলটি প্রিন্ট হচ্ছে! এখন বাতিল করা সম্ভব নয়। অনুগ্রহ করে কাউন্টারে কথা বলুন।"
+        )
+
+    file_path = order.get("file_path")
+    if file_path:
+        utils.secure_delete_file(file_path)
+
+    db.mark_order_file_purged(order_id)
+
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    
+    delete_record = body.get("delete_record", False)
+    if delete_record or order["status"] in ("completed", "cancelled"):
+        db.delete_order_record(order_id, order["shop_id"])
+    else:
+        db.update_order_status(order_id, "cancelled")
+
+    await manager.notify_order(order_id, {
+        "event": "STATUS_CHANGE",
+        "status": "cancelled",
+        "message": "কাস্টমার কর্তৃক অর্ডারটি বাতিল ও ডিলিট করা হয়েছে।"
+    })
+    await manager.notify_admin(order["shop_id"], {
+        "event": "ORDER_UPDATED",
+        "order_id": order_id
+    })
+
+    return {"success": True, "message": "অর্ডারটি সফলভাবে বাতিল ও ডিলিট করা হয়েছে।"}
+
+
+@app.post("/api/orders/purge-customer-history")
+async def customer_purge_history(request: Request):
+    """Allows customer to delete all their listed previous order records and files."""
+    body = await request.json()
+    ids = body.get("ids") or []
+    deleted_count = 0
+    for oid in ids:
+        order = db.get_order(oid)
+        if not order:
+            continue
+        if order["status"] == "printing":
+            continue
+        file_path = order.get("file_path")
+        if file_path:
+            utils.secure_delete_file(file_path)
+        db.delete_order_record(oid, order["shop_id"])
+        deleted_count += 1
+        await manager.notify_admin(order["shop_id"], {"event": "ORDER_UPDATED", "order_id": oid})
+    return {"success": True, "deleted_count": deleted_count}
+
 # ── AGENT (WINDOWS DESKTOP) ENDPOINTS ──
 
 @app.get("/download/{order_id}")

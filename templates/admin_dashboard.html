@@ -1025,9 +1025,10 @@
         <div id="adminCornerCropSection" class="hidden space-y-2">
           <div class="relative bg-gray-950 rounded-xl overflow-hidden flex items-center justify-center h-[320px] max-h-[46vh] select-none touch-none" id="adminSmartContainer">
             <canvas id="adminSmartCanvas" class="block cursor-crosshair touch-none"></canvas>
+            <canvas id="adminSmartLoupeCanvas" width="130" height="130" class="absolute top-3 left-3 w-[110px] h-[110px] rounded-full border-2 border-white shadow-2xl z-20 pointer-events-none hidden bg-slate-900"></canvas>
           </div>
           <p class="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1 text-center font-medium">
-            💡 ছবির <b>৪টি সবুজ কোণা</b> টেনে বাঁকা ডকুমেন্ট বা কার্ডের কোণায় বসান।
+            💡 ছবির <b>৪টি সবুজ কোণা</b> বা <b>মাঝখানের পয়েন্ট</b> টেনে বাঁকা ডকুমেন্ট বা কার্ড সোজা করুন। পুরো বক্স ধরেও সরানো যাবে।
           </p>
         </div>
 
@@ -1069,6 +1070,14 @@
         <button type="button" onclick="closeAdminCamscanModal()" class="text-white hover:opacity-80 text-2xl leading-none">&times;</button>
       </div>
       <div class="p-4 space-y-3 text-xs">
+        <!-- Live Filter Preview Box -->
+        <div class="relative bg-slate-950 rounded-xl overflow-hidden flex items-center justify-center h-[230px] max-h-[34vh] border border-slate-700 select-none">
+          <canvas id="adminCamscanPreviewCanvas" class="max-h-full max-w-full object-contain block"></canvas>
+          <div id="adminCamscanLoading" class="absolute inset-0 bg-slate-950/80 flex items-center justify-center text-white text-xs font-bold gap-2">
+            <span class="animate-spin text-base">⏳</span> <span>ছবি লোড হচ্ছে...</span>
+          </div>
+        </div>
+
         <p class="text-gray-600 font-medium">মোবাইলে তোলা ঝাপসা, অন্ধকার বা ছায়াযুক্ত ডকুমেন্ট ও ছবি পরিষ্কার করুন:</p>
         <div class="grid grid-cols-2 gap-2">
           <button type="button" id="btnAdminFxMagic" onclick="selectAdminCamscanFx('magic_color')" class="p-2.5 rounded-xl border-2 border-emerald-600 bg-emerald-50 text-emerald-900 font-bold text-center flex flex-col items-center gap-1 shadow-sm">
@@ -1143,6 +1152,14 @@
         playChime();
         addNewOrderRow(msg.order);
       } else if (msg.event === 'ORDER_UPDATED' || msg.event === 'PAYMENT_SUBMITTED') {
+        const editModal = document.getElementById('editOrderModal');
+        const isEditing = editModal && !editModal.classList.contains('hidden');
+        if (isEditing) {
+          if (currentEditingOrderId && msg.order_id === currentEditingOrderId) {
+            refreshAdminEditPreview();
+          }
+          return;
+        }
         location.reload();
       } else if (msg.event === 'PRINT_FAILED') {
         alert('⚠️ এজেন্ট প্রিন্ট নোট: ' + (msg.reason || 'প্রিন্টার চেক করুন'));
@@ -1410,11 +1427,17 @@
       refreshAdminEditPreview();
     }
 
+    let editModalHasChanges = false;
+
     function closeEditModal() {
       document.getElementById('editOrderModal').classList.add('hidden');
       currentEditingOrderId = null;
       currentEditingOrder = null;
       lastEditPreviewUrl = '';
+      if (editModalHasChanges) {
+        editModalHasChanges = false;
+        location.reload();
+      }
     }
 
     async function saveOrderEdits(andApprove = false) {
@@ -2547,13 +2570,15 @@
         });
         const data = await res.json();
         if (data.success) {
+          editModalHasChanges = true;
           lastEditPreviewUrl = '';
           refreshAdminEditPreview();
+          showAdminToast('✓ পাতা ৯০° ঘোরানো হয়েছে');
         } else {
-          alert('ঘোরানো সম্ভব হয়নি: ' + (data.detail || ''));
+          showAdminToast('ঘোরানো সম্ভব হয়নি: ' + (data.detail || ''), 'error');
         }
       } catch (e) {
-        alert('ত্রুটি: ' + e);
+        showAdminToast('ত্রুটি: ' + e, 'error');
       }
     }
 
@@ -2567,13 +2592,15 @@
         });
         const data = await res.json();
         if (data.success) {
+          editModalHasChanges = true;
           const img = document.getElementById(side === 'front' ? 'editNidFrontImg' : 'editNidBackImg');
           if (img) img.src = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?side=${side}&t=${Date.now()}`;
           lastEditPreviewUrl = '';
           refreshAdminEditPreview();
+          showAdminToast('✓ NID ' + (side === 'front' ? 'সামনের' : 'পেছনের') + ' পিঠ ৯০° ঘোরানো হয়েছে');
         }
       } catch (e) {
-        alert('ত্রুটি: ' + e);
+        showAdminToast('ত্রুটি: ' + e, 'error');
       }
     }
 
@@ -2682,6 +2709,82 @@
       }
     }
 
+    let adminCamscanBaseCanvas = null;
+
+    function applyClientCropFilterToCanvas(baseCvs, fx) {
+      if (!baseCvs || fx === 'original' || fx === 'none') return baseCvs;
+      const w = baseCvs.width, h = baseCvs.height;
+      const outCvs = document.createElement('canvas');
+      outCvs.width = w;
+      outCvs.height = h;
+      const ctx = outCvs.getContext('2d');
+      ctx.drawImage(baseCvs, 0, 0);
+      const imgD = ctx.getImageData(0, 0, w, h);
+      const d = imgD.data;
+
+      // Sample 88th percentile luminance for white paper normalization
+      const lumHist = new Uint32Array(256);
+      const step = Math.max(4, ((d.length >> 2) / 8000) | 0) << 2;
+      let totalSamples = 0;
+      for (let i = 0; i < d.length; i += step) {
+        const l = (d[i] * 77 + d[i + 1] * 150 + d[i + 2] * 29) >> 8;
+        lumHist[l]++;
+        totalSamples++;
+      }
+      let acc = 0, whitePt = 225;
+      const targetCnt = totalSamples * 0.88;
+      for (let k = 0; k < 256; k++) {
+        acc += lumHist[k];
+        if (acc >= targetCnt) {
+          whitePt = Math.max(155, k);
+          break;
+        }
+      }
+
+      const invScale = 255.0 / (whitePt * 0.94);
+      for (let i = 0; i < d.length; i += 4) {
+        let r = Math.min(255, d[i] * invScale);
+        let g = Math.min(255, d[i + 1] * invScale);
+        let b = Math.min(255, d[i + 2] * invScale);
+
+        if (fx === 'bw_doc') {
+          const l = (r * 0.299 + g * 0.587 + b * 0.114);
+          let v = l > 202 ? 255 : (l < 115 ? Math.max(0, (l - 65) * 0.5) : ((l - 115) / 87.0) * 255);
+          d[i] = d[i + 1] = d[i + 2] = v;
+        } else if (fx === 'magic_color') {
+          r = r > 224 ? 255 : Math.max(0, Math.min(255, (r - 128) * 1.32 + 132));
+          g = g > 224 ? 255 : Math.max(0, Math.min(255, (g - 128) * 1.32 + 132));
+          b = b > 224 ? 255 : Math.max(0, Math.min(255, (b - 128) * 1.32 + 132));
+          d[i] = r; d[i + 1] = g; d[i + 2] = b;
+        } else if (fx === 'hd_clear') {
+          r = Math.max(0, Math.min(255, (r - 128) * 1.18 + 132));
+          g = Math.max(0, Math.min(255, (g - 128) * 1.18 + 132));
+          b = Math.max(0, Math.min(255, (g - 128) * 1.18 + 132));
+          d[i] = r; d[i + 1] = g; d[i + 2] = b;
+        }
+      }
+      ctx.putImageData(imgD, 0, 0);
+      return outCvs;
+    }
+
+    function showAdminToast(message, type = 'success') {
+      let toast = document.getElementById('adminGlobalToast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'adminGlobalToast';
+        document.body.appendChild(toast);
+      }
+      toast.className = `fixed bottom-5 right-5 z-[9999] px-4 py-3 rounded-2xl shadow-2xl font-bold text-xs sm:text-sm text-white transition-all duration-300 flex items-center gap-2 ${type === 'error' ? 'bg-red-600' : 'bg-emerald-600'}`;
+      toast.innerHTML = `<span>${type === 'error' ? '⚠️' : '✓'}</span> <span>${message}</span>`;
+      toast.style.opacity = '1';
+      toast.style.transform = 'translateY(0)';
+      clearTimeout(toast._timer);
+      toast._timer = setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(16px)';
+      }, 3500);
+    }
+
     function openAdminCamscanModal() {
       if (!currentEditingOrderId) {
         alert('কোনো অর্ডার নির্বাচন করা নেই।');
@@ -2690,12 +2793,55 @@
       const modal = document.getElementById('adminCamscanModal');
       if (!modal) return;
       modal.classList.remove('hidden');
+
+      const loading = document.getElementById('adminCamscanLoading');
+      if (loading) loading.classList.remove('hidden');
+
+      let extra = {};
+      try { extra = JSON.parse((currentEditingOrder && currentEditingOrder.extra_data) || '{}'); } catch(e) {}
+
+      let previewUrl = '';
+      if (extra.is_nid || (currentEditingOrder && currentEditingOrder.paper_size === 'NID') || (currentEditingOrder && currentEditingOrder.file_path && currentEditingOrder.file_path.includes('nid_'))) {
+        previewUrl = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?side=front&t=${Date.now()}`;
+      } else {
+        previewUrl = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?page=${editPreviewPage || 1}&t=${Date.now()}`;
+      }
+
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const cvs = document.createElement('canvas');
+        cvs.width = img.naturalWidth || img.width;
+        cvs.height = img.naturalHeight || img.height;
+        const ctx = cvs.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        adminCamscanBaseCanvas = cvs;
+        if (loading) loading.classList.add('hidden');
+        renderAdminCamscanPreview();
+      };
+      img.onerror = () => {
+        if (loading) loading.innerHTML = '<span class="text-red-400">⚠️ প্রিভিউ লোড হতে সমস্যা হয়েছে</span>';
+      };
+      img.src = previewUrl;
+
       selectAdminCamscanFx('magic_color');
       const allPagesOpt = document.getElementById('adminCamscanAllPagesOption');
       if (allPagesOpt) {
         const maxP = Math.max(1, parseInt((currentEditingOrder && currentEditingOrder.page_count) || 1, 10));
         allPagesOpt.classList.toggle('hidden', maxP <= 1);
       }
+    }
+
+    function renderAdminCamscanPreview() {
+      if (!adminCamscanBaseCanvas) return;
+      const outCanvas = document.getElementById('adminCamscanPreviewCanvas');
+      if (!outCanvas) return;
+      const filtered = applyClientCropFilterToCanvas(adminCamscanBaseCanvas, currentAdminCamscanFx);
+      outCanvas.width = filtered.width;
+      outCanvas.height = filtered.height;
+      const ctx = outCanvas.getContext('2d');
+      ctx.clearRect(0, 0, outCanvas.width, outCanvas.height);
+      ctx.drawImage(filtered, 0, 0);
     }
 
     function closeAdminCamscanModal() {
@@ -2715,6 +2861,7 @@
           el.className = 'p-2.5 rounded-xl border border-gray-200 hover:border-emerald-500 font-bold text-center flex flex-col items-center gap-1';
         }
       });
+      renderAdminCamscanPreview();
     }
 
     async function applyAdminCamscanNow() {
@@ -2739,6 +2886,7 @@
         });
         const data = await res.json();
         if (data.success) {
+          editModalHasChanges = true;
           closeAdminCamscanModal();
           lastEditPreviewUrl = '';
           refreshAdminEditPreview();
@@ -2746,12 +2894,12 @@
           const bImg = document.getElementById('editNidBackImg');
           if (fImg) fImg.src = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?side=front&t=${Date.now()}`;
           if (bImg) bImg.src = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?side=back&t=${Date.now()}`;
-          alert('✓ CamScanner ক্লিয়ারিটি সফলভাবে প্রয়োগ করা হয়েছে!');
+          showAdminToast('✓ CamScanner ক্লিয়ারিটি সফলভাবে প্রয়োগ করা হয়েছে!');
         } else {
-          alert('প্রয়োগ ব্যর্থ হয়েছে: ' + (data.detail || ''));
+          showAdminToast('প্রয়োগ ব্যর্থ হয়েছে: ' + (data.detail || ''), 'error');
         }
       } catch (e) {
-        alert('CamScan প্রয়োগে ত্রুটি: ' + e);
+        showAdminToast('CamScan প্রয়োগে ত্রুটি: ' + e, 'error');
       } finally {
         btn.disabled = false;
         btn.innerHTML = '<span>✓</span> <span>প্রয়োগ ও সংরক্ষণ করুন</span>';
@@ -2777,22 +2925,57 @@
 
     function setupAndOpenAdminCropModal(srcUrl, target) {
       document.getElementById('adminOrderCropModal').classList.remove('hidden');
-      setAdminCropMode(target.startsWith('nid') ? 'corner' : 'box');
+      adminActiveCropTarget = target;
+      
+      const isCorner = target.startsWith('nid');
+      adminCropMode = isCorner ? 'corner' : 'box';
+
+      const bBox = document.getElementById('btnAdminCropModeBox');
+      const bCorner = document.getElementById('btnAdminCropModeCorner');
+      const secBox = document.getElementById('adminBoxCropSection');
+      const secCorner = document.getElementById('adminCornerCropSection');
+
+      if (adminCropMode === 'box') {
+        bBox.className = 'py-1.5 rounded-lg font-bold bg-pink-600 text-white shadow-sm flex items-center justify-center gap-1';
+        bCorner.className = 'py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-200 flex items-center justify-center gap-1';
+        secBox.classList.remove('hidden');
+        secCorner.classList.add('hidden');
+      } else {
+        bCorner.className = 'py-1.5 rounded-lg font-bold bg-emerald-600 text-white shadow-sm flex items-center justify-center gap-1';
+        bBox.className = 'py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-200 flex items-center justify-center gap-1';
+        secCorner.classList.remove('hidden');
+        secBox.classList.add('hidden');
+      }
 
       if (target.startsWith('nid')) setAdminBoxCropRatio('nid');
       else if (target === 'studio') setAdminBoxCropRatio('passport');
       else setAdminBoxCropRatio('free');
 
       const img = document.getElementById('adminCropTargetImg');
-      img.onload = () => {
-        initAdminBoxCropper();
+      img.crossOrigin = 'anonymous';
+
+      const onImageReady = () => {
+        adminCropImgElement = img;
+        adminSmartPts = [{x: 0.08, y: 0.08}, {x: 0.92, y: 0.08}, {x: 0.92, y: 0.92}, {x: 0.08, y: 0.92}];
         initAdminSmartCanvas(img);
+        if (adminCropMode === 'corner') {
+          drawAdminSmartCrop();
+        } else {
+          initAdminBoxCropper();
+        }
       };
+
+      img.onload = onImageReady;
       img.src = srcUrl;
+      if (img.complete && img.naturalWidth > 0) {
+        onImageReady();
+      }
     }
 
     function closeAdminOrderCropModal() {
       document.getElementById('adminOrderCropModal').classList.add('hidden');
+      const loupe = document.getElementById('adminSmartLoupeCanvas');
+      if (loupe) loupe.classList.add('hidden');
       if (adminCropper) {
         adminCropper.destroy();
         adminCropper = null;
@@ -2817,7 +3000,10 @@
         bBox.className = 'py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-200 flex items-center justify-center gap-1';
         secCorner.classList.remove('hidden');
         secBox.classList.add('hidden');
-        drawAdminSmartCrop();
+        if (adminCropImgElement) {
+          initAdminSmartCanvas(adminCropImgElement);
+          drawAdminSmartCrop();
+        }
       }
     }
 
@@ -2906,112 +3092,290 @@
       }
     }
 
+    function pointInAdminQuad(px, py, pts) {
+      let inside = false;
+      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+        const xi = pts[i].x, yi = pts[i].y;
+        const xj = pts[j].x, yj = pts[j].y;
+        const intersect = ((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+      }
+      return inside;
+    }
+
+    function bilerpAdmin(p0, p1, p2, p3, u, v) {
+      const x = (1 - u) * (1 - v) * p0.x + u * (1 - v) * p1.x + u * v * p2.x + (1 - u) * v * p3.x;
+      const y = (1 - u) * (1 - v) * p0.y + u * (1 - v) * p1.y + u * v * p2.y + (1 - u) * v * p3.y;
+      return { x, y };
+    }
+
+    function updateAdminLoupe(normPt) {
+      const loupe = document.getElementById('adminSmartLoupeCanvas');
+      if (!loupe || !adminCropImgElement) return;
+      loupe.classList.remove('hidden');
+      if (normPt.x < 0.45 && normPt.y < 0.45) {
+        loupe.style.left = 'auto';
+        loupe.style.right = '12px';
+      } else {
+        loupe.style.right = 'auto';
+        loupe.style.left = '12px';
+      }
+      const lctx = loupe.getContext('2d');
+      const lw = loupe.width, lh = loupe.height;
+      lctx.clearRect(0, 0, lw, lh);
+      lctx.fillStyle = '#0f172a';
+      lctx.fillRect(0, 0, lw, lh);
+
+      const imgW = adminCropImgElement.naturalWidth || adminCropImgElement.width || 300;
+      const imgH = adminCropImgElement.naturalHeight || adminCropImgElement.height || 200;
+      const srcX = normPt.x * imgW;
+      const srcY = normPt.y * imgH;
+      const zoomRadius = Math.max(28, Math.min(imgW, imgH) * 0.09);
+
+      try {
+        lctx.drawImage(
+          adminCropImgElement,
+          srcX - zoomRadius, srcY - zoomRadius, zoomRadius * 2, zoomRadius * 2,
+          0, 0, lw, lh
+        );
+      } catch (e) {}
+
+      // Crosshair inside loupe
+      lctx.strokeStyle = '#10b981';
+      lctx.lineWidth = 1.5;
+      lctx.beginPath();
+      lctx.moveTo(lw / 2, 0); lctx.lineTo(lw / 2, lh);
+      lctx.moveTo(0, lh / 2); lctx.lineTo(lw, lh / 2);
+      lctx.stroke();
+
+      lctx.beginPath();
+      lctx.arc(lw / 2, lh / 2, 3, 0, Math.PI * 2);
+      lctx.fillStyle = '#ffffff';
+      lctx.fill();
+    }
+
+    let adminDragStartPos = null;
+    let adminSmartPtsStart = null;
+
     function initAdminSmartCanvas(img) {
       adminCropImgElement = img;
-      adminSmartPts = [{x: 0.08, y: 0.08}, {x: 0.92, y: 0.08}, {x: 0.92, y: 0.92}, {x: 0.08, y: 0.92}];
       const canvas = document.getElementById('adminSmartCanvas');
-      if (!canvas || canvas.dataset.bound) return;
-      canvas.dataset.bound = '1';
+      if (!canvas) return;
 
-      function getEvPos(e) {
-        const r = canvas.getBoundingClientRect();
-        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-        return { x: clientX - r.left, y: clientY - r.top };
-      }
+      if (!canvas.dataset.bound) {
+        canvas.dataset.bound = '1';
 
-      function onStart(e) {
-        const pos = getEvPos(e);
-        const rad = 28;
-        let minD = 9999, minI = -1;
-        adminSmartPts.forEach((pt, i) => {
-          const px = pt.x * canvas.width;
-          const py = pt.y * canvas.height;
-          const d = Math.hypot(px - pos.x, py - pos.y);
-          if (d < rad && d < minD) { minD = d; minI = i; }
-        });
-        if (minI !== -1) {
-          adminActiveDragIdx = minI;
-          e.preventDefault();
+        function getEvPos(e) {
+          const r = canvas.getBoundingClientRect();
+          const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+          const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+          return {
+            x: (clientX - r.left) * (canvas.width / r.width),
+            y: (clientY - r.top) * (canvas.height / r.height)
+          };
         }
-      }
 
-      function onMove(e) {
-        if (adminActiveDragIdx === -1) return;
-        e.preventDefault();
-        const pos = getEvPos(e);
-        adminSmartPts[adminActiveDragIdx].x = Math.max(0, Math.min(1, pos.x / canvas.width));
-        adminSmartPts[adminActiveDragIdx].y = Math.max(0, Math.min(1, pos.y / canvas.height));
-        drawAdminSmartCrop();
-      }
+        function onStart(e) {
+          if (!adminCropImgElement) return;
+          const pos = getEvPos(e);
+          const nx = pos.x / canvas.width;
+          const ny = pos.y / canvas.height;
 
-      function onEnd() {
-        adminActiveDragIdx = -1;
-        drawAdminSmartCrop();
-      }
+          // 1. Check 4 corners (0..3)
+          let bestIdx = -1;
+          let bestDist = 32;
+          adminSmartPts.forEach((pt, i) => {
+            const px = pt.x * canvas.width;
+            const py = pt.y * canvas.height;
+            const d = Math.hypot(px - pos.x, py - pos.y);
+            if (d < bestDist) { bestDist = d; bestIdx = i; }
+          });
 
-      canvas.addEventListener('mousedown', onStart);
-      window.addEventListener('mousemove', onMove);
-      window.addEventListener('mouseup', onEnd);
-      canvas.addEventListener('touchstart', onStart, { passive: false });
-      window.addEventListener('touchmove', onMove, { passive: false });
-      window.addEventListener('touchend', onEnd);
+          // 2. Check 4 edge midpoints (4..7)
+          if (bestIdx === -1) {
+            for (let i = 0; i < 4; i++) {
+              const a = adminSmartPts[i];
+              const b = adminSmartPts[(i + 1) % 4];
+              const mx = ((a.x + b.x) / 2) * canvas.width;
+              const my = ((a.y + b.y) / 2) * canvas.height;
+              const d = Math.hypot(mx - pos.x, my - pos.y);
+              if (d < 28) {
+                bestDist = d;
+                bestIdx = 4 + i;
+                break;
+              }
+            }
+          }
+
+          // 3. Check inside whole polygon (8)
+          if (bestIdx === -1) {
+            if (pointInAdminQuad(nx, ny, adminSmartPts)) {
+              bestIdx = 8;
+            }
+          }
+
+          if (bestIdx !== -1) {
+            if (e.cancelable) e.preventDefault();
+            adminActiveDragIdx = bestIdx;
+            adminDragStartPos = { x: nx, y: ny };
+            adminSmartPtsStart = adminSmartPts.map(p => ({ x: p.x, y: p.y }));
+            onMove(e);
+          }
+        }
+
+        function onMove(e) {
+          if (adminActiveDragIdx === -1) return;
+          if (e.cancelable) e.preventDefault();
+          const pos = getEvPos(e);
+          const nx = Math.max(0, Math.min(1, pos.x / canvas.width));
+          const ny = Math.max(0, Math.min(1, pos.y / canvas.height));
+
+          if (adminActiveDragIdx < 4) {
+            adminSmartPts[adminActiveDragIdx] = { x: nx, y: ny };
+            updateAdminLoupe(adminSmartPts[adminActiveDragIdx]);
+          } else if (adminActiveDragIdx < 8) {
+            const edge = adminActiveDragIdx - 4;
+            const i1 = edge;
+            const i2 = (edge + 1) % 4;
+            const midX = (adminSmartPtsStart[i1].x + adminSmartPtsStart[i2].x) / 2;
+            const midY = (adminSmartPtsStart[i1].y + adminSmartPtsStart[i2].y) / 2;
+            const dx = nx - adminDragStartPos.x;
+            const dy = ny - adminDragStartPos.y;
+            adminSmartPts[i1].x = Math.max(0, Math.min(1, adminSmartPtsStart[i1].x + dx));
+            adminSmartPts[i1].y = Math.max(0, Math.min(1, adminSmartPtsStart[i1].y + dy));
+            adminSmartPts[i2].x = Math.max(0, Math.min(1, adminSmartPtsStart[i2].x + dx));
+            adminSmartPts[i2].y = Math.max(0, Math.min(1, adminSmartPtsStart[i2].y + dy));
+            updateAdminLoupe({ x: nx, y: ny });
+          } else if (adminActiveDragIdx === 8) {
+            let dx = nx - adminDragStartPos.x;
+            let dy = ny - adminDragStartPos.y;
+            const minX = Math.min(...adminSmartPtsStart.map(p => p.x));
+            const maxX = Math.max(...adminSmartPtsStart.map(p => p.x));
+            const minY = Math.min(...adminSmartPtsStart.map(p => p.y));
+            const maxY = Math.max(...adminSmartPtsStart.map(p => p.y));
+            dx = Math.max(-minX, Math.min(1 - maxX, dx));
+            dy = Math.max(-minY, Math.min(1 - maxY, dy));
+            for (let i = 0; i < 4; i++) {
+              adminSmartPts[i].x = adminSmartPtsStart[i].x + dx;
+              adminSmartPts[i].y = adminSmartPtsStart[i].y + dy;
+            }
+          }
+          drawAdminSmartCrop();
+        }
+
+        function onEnd() {
+          adminActiveDragIdx = -1;
+          const loupe = document.getElementById('adminSmartLoupeCanvas');
+          if (loupe) loupe.classList.add('hidden');
+          drawAdminSmartCrop();
+        }
+
+        canvas.addEventListener('mousedown', onStart);
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onEnd);
+        canvas.addEventListener('touchstart', onStart, { passive: false });
+        window.addEventListener('touchmove', onMove, { passive: false });
+        window.addEventListener('touchend', onEnd);
+      }
     }
 
     function drawAdminSmartCrop() {
       const canvas = document.getElementById('adminSmartCanvas');
       const container = document.getElementById('adminSmartContainer');
-      if (!canvas || !container || !adminCropImgElement || !adminCropImgElement.width) return;
+      if (!canvas || !container || !adminCropImgElement) return;
 
-      const maxW = container.clientWidth - 20;
-      const maxH = container.clientHeight - 20;
       const imgW = adminCropImgElement.naturalWidth || adminCropImgElement.width;
       const imgH = adminCropImgElement.naturalHeight || adminCropImgElement.height;
+      if (!imgW || !imgH) return;
+
+      const maxW = Math.max(200, container.clientWidth - 20);
+      const maxH = Math.max(200, container.clientHeight - 20);
       const scale = Math.min(maxW / imgW, maxH / imgH, 1.0);
 
       canvas.width = Math.round(imgW * scale);
       canvas.height = Math.round(imgH * scale);
       const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 1. Base Image
       ctx.drawImage(adminCropImgElement, 0, 0, canvas.width, canvas.height);
 
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const cPts = adminSmartPts.map(pt => ({
+        x: pt.x * canvas.width,
+        y: pt.y * canvas.height
+      }));
 
+      // 2. Dim outside area
       ctx.save();
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.52)';
       ctx.beginPath();
-      adminSmartPts.forEach((pt, i) => {
-        const px = pt.x * canvas.width;
-        const py = pt.y * canvas.height;
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      });
+      ctx.rect(0, 0, canvas.width, canvas.height);
+      ctx.moveTo(cPts[0].x, cPts[0].y);
+      ctx.lineTo(cPts[1].x, cPts[1].y);
+      ctx.lineTo(cPts[2].x, cPts[2].y);
+      ctx.lineTo(cPts[3].x, cPts[3].y);
       ctx.closePath();
-      ctx.clip();
-      ctx.drawImage(adminCropImgElement, 0, 0, canvas.width, canvas.height);
+      ctx.fill('evenodd');
       ctx.restore();
 
-      ctx.beginPath();
-      adminSmartPts.forEach((pt, i) => {
-        const px = pt.x * canvas.width;
-        const py = pt.y * canvas.height;
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
+      // 3. Perspective internal 3x3 dashed grid
+      ctx.save();
+      ctx.strokeStyle = 'rgba(16, 185, 129, 0.45)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      [1 / 3, 2 / 3].forEach(t => {
+        const vTop = bilerpAdmin(cPts[0], cPts[1], cPts[2], cPts[3], t, 0);
+        const vBot = bilerpAdmin(cPts[0], cPts[1], cPts[2], cPts[3], t, 1);
+        ctx.beginPath(); ctx.moveTo(vTop.x, vTop.y); ctx.lineTo(vBot.x, vBot.y); ctx.stroke();
+
+        const hLeft = bilerpAdmin(cPts[0], cPts[1], cPts[2], cPts[3], 0, t);
+        const hRight = bilerpAdmin(cPts[0], cPts[1], cPts[2], cPts[3], 1, t);
+        ctx.beginPath(); ctx.moveTo(hLeft.x, hLeft.y); ctx.lineTo(hRight.x, hRight.y); ctx.stroke();
       });
+      ctx.restore();
+
+      // 4. Boundary Polygon
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(cPts[0].x, cPts[0].y);
+      ctx.lineTo(cPts[1].x, cPts[1].y);
+      ctx.lineTo(cPts[2].x, cPts[2].y);
+      ctx.lineTo(cPts[3].x, cPts[3].y);
       ctx.closePath();
       ctx.lineWidth = 2.5;
       ctx.strokeStyle = '#10b981';
       ctx.stroke();
+      ctx.restore();
 
-      adminSmartPts.forEach((pt, i) => {
-        const px = pt.x * canvas.width;
-        const py = pt.y * canvas.height;
+      // 5. Edge midpoints (4..7)
+      for (let i = 0; i < 4; i++) {
+        const a = cPts[i];
+        const b = cPts[(i + 1) % 4];
+        const mx = (a.x + b.x) / 2;
+        const my = (a.y + b.y) / 2;
         ctx.beginPath();
-        ctx.arc(px, py, 11, 0, Math.PI * 2);
-        ctx.fillStyle = (i === adminActiveDragIdx) ? '#059669' : '#10b981';
+        ctx.arc(mx, my, 7, 0, Math.PI * 2);
+        ctx.fillStyle = (adminActiveDragIdx === 4 + i) ? '#ec4899' : '#ffffff';
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#059669';
+        ctx.stroke();
+      }
+
+      // 6. 4 Corner Handles (0..3)
+      cPts.forEach((pt, i) => {
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 11, 0, Math.PI * 2);
+        ctx.fillStyle = (i === adminActiveDragIdx) ? '#ec4899' : '#10b981';
         ctx.fill();
         ctx.lineWidth = 2.5;
         ctx.strokeStyle = '#ffffff';
         ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 3, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
       });
     }
 
@@ -3146,10 +3510,11 @@
           });
           const data = await res.json();
           if (!data.success) throw new Error(data.detail || 'ক্রপ সংরক্ষণ ব্যর্থ');
+          editModalHasChanges = true;
           closeAdminOrderCropModal();
           lastEditPreviewUrl = '';
           refreshAdminEditPreview();
-          alert('✓ ডকুমেন্টের পাতা সফলভাবে ক্রপ ও সোজা করা হয়েছে!');
+          showAdminToast('✓ ডকুমেন্টের পাতা সফলভাবে ক্রপ ও সোজা করা হয়েছে!');
         } else if (adminActiveCropTarget === 'order_nid') {
           if (!currentEditingOrderId) throw new Error('কোনো অর্ডার আইডি পাওয়া যায়নি');
           const side = adminCropNidSide || 'front';
@@ -3160,12 +3525,13 @@
           });
           const data = await res.json();
           if (!data.success) throw new Error(data.detail || 'ক্রপ সংরক্ষণ ব্যর্থ');
+          editModalHasChanges = true;
           closeAdminOrderCropModal();
           const img = document.getElementById(side === 'front' ? 'editNidFrontImg' : 'editNidBackImg');
           if (img) img.src = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?side=${side}&t=${Date.now()}`;
           lastEditPreviewUrl = '';
           refreshAdminEditPreview();
-          alert('✓ NID কার্ড ক্রপ ও সোজা করা হয়েছে!');
+          showAdminToast('✓ NID কার্ড ক্রপ ও সোজা করা হয়েছে!');
         } else if (adminActiveCropTarget === 'order_studio') {
           if (!currentEditingOrderId) throw new Error('কোনো অর্ডার আইডি পাওয়া যায়নি');
           const res = await fetch(`/admin/order/${encodeURIComponent(currentEditingOrderId)}/save-crop`, {
@@ -3175,31 +3541,35 @@
           });
           const data = await res.json();
           if (!data.success) throw new Error(data.detail || 'ক্রপ সংরক্ষণ ব্যর্থ');
+          editModalHasChanges = true;
           closeAdminOrderCropModal();
           lastEditPreviewUrl = '';
           refreshAdminEditPreview();
-          alert('✓ ফটো সফলভাবে ক্রপ ও শিট আপডেট করা হয়েছে!');
+          showAdminToast('✓ ফটো সফলভাবে ক্রপ ও শিট আপডেট করা হয়েছে!');
         } else if (adminActiveCropTarget === 'studio') {
           resultCanvas.toBlob(blob => {
             const croppedFile = new File([blob], 'cropped_studio.jpg', { type: 'image/jpeg' });
             handleAdminStudioFile(croppedFile);
             closeAdminOrderCropModal();
+            showAdminToast('✓ স্টুডিও ফটো ক্রপ সম্পন্ন!');
           }, 'image/jpeg', 0.95);
         } else if (adminActiveCropTarget === 'nid_front') {
           resultCanvas.toBlob(blob => {
             const croppedFile = new File([blob], 'cropped_nid_front.jpg', { type: 'image/jpeg' });
             handleAdminNidFile('front', croppedFile);
             closeAdminOrderCropModal();
+            showAdminToast('✓ NID সামনের পিঠ ক্রপ সম্পন্ন!');
           }, 'image/jpeg', 0.95);
         } else if (adminActiveCropTarget === 'nid_back') {
           resultCanvas.toBlob(blob => {
             const croppedFile = new File([blob], 'cropped_nid_back.jpg', { type: 'image/jpeg' });
             handleAdminNidFile('back', croppedFile);
             closeAdminOrderCropModal();
+            showAdminToast('✓ NID পেছনের পিঠ ক্রপ সম্পন্ন!');
           }, 'image/jpeg', 0.95);
         }
       } catch (err) {
-        alert('ক্রপ সংরক্ষণ করতে সমস্যা হয়েছে: ' + err.message);
+        showAdminToast('ক্রপ সংরক্ষণ করতে সমস্যা হয়েছে: ' + err.message, 'error');
       } finally {
         btn.disabled = false;
         btn.innerHTML = '<span>✓</span> <span>ক্রপ সম্পন্ন ও সংরক্ষণ করুন</span>';

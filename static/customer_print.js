@@ -1523,9 +1523,9 @@
     list.forEach((item) => {
       const meta = getStatusMeta(item.status);
       const row = document.createElement('div');
-      row.className = 'p-2.5 rounded-xl bg-gray-50 hover:bg-pink-50/40 border border-gray-200/80 flex items-center justify-between gap-2 cursor-pointer transition';
+      row.className = 'p-2.5 rounded-xl bg-gray-50 hover:bg-pink-50/40 border border-gray-200/80 flex items-center justify-between gap-2 transition group';
       row.innerHTML = `
-        <div class="min-w-0 flex-1">
+        <div class="min-w-0 flex-1 cursor-pointer" onclick="openTracker('${item.id}')">
           <div class="flex items-center gap-1.5">
             <span class="font-bold text-xs text-gray-800 truncate">${item.original_filename || 'ডকুমেন্ট'}</span>
             <span class="text-[10px] font-mono text-gray-400 shrink-0">#${item.id}</span>
@@ -1537,14 +1537,13 @@
             ${item.created_at ? `<span>• ${item.created_at}</span>` : ''}
           </div>
         </div>
-        <div class="flex flex-col items-end gap-1 shrink-0">
-          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border ${meta.cls}">${meta.badge}</span>
-          <span class="text-[10px] text-pink-600 font-bold underline">বিস্তারিত দেখুন ➔</span>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button type="button" onclick="openTracker('${item.id}')" class="px-2 py-0.5 rounded-full text-[10px] font-bold border ${meta.cls}">${meta.badge}</button>
+          <button type="button" class="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition text-xs" title="অর্ডার বাতিল ও ডিলিট করুন" onclick="deleteCustomerRecentOrder('${item.id}', event)">
+            🗑️
+          </button>
         </div>
       `;
-      row.addEventListener('click', () => {
-        openTracker(item.id);
-      });
       box.appendChild(row);
     });
   }
@@ -1766,6 +1765,74 @@
   if ($('btnCloseTrackerTop')) $('btnCloseTrackerTop').addEventListener('click', closeTrackerOverlay);
   if ($('btnTrackerGoBack')) $('btnTrackerGoBack').addEventListener('click', closeTrackerOverlay);
   if ($('btnTrackerNewPrint')) $('btnTrackerNewPrint').addEventListener('click', startNewPrintFromTracker);
+
+  window.deleteCustomerRecentOrder = async function(orderId, event) {
+    if (event) event.stopPropagation();
+    if (!orderId) return;
+
+    const list = loadRecentOrders();
+    const item = list.find(x => x && x.id === orderId);
+    const isAct = item && (item.status === 'pending_payment' || item.status === 'paid');
+    const msg = isAct
+      ? `আপনি কি নিশ্চিত যে #${orderId} নম্বরের প্রিন্ট অর্ডারটি বাতিল ও ডিলিট করতে চান?`
+      : `আপনি কি #${orderId} নম্বরের প্রিন্ট ইতিহাস মুছে ফেলতে চান?`;
+
+    if (!confirm(msg)) return;
+
+    try {
+      const res = await fetch(`/api/order/${encodeURIComponent(orderId)}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delete_record: true })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.detail || 'অর্ডার বাতিল করা সম্ভব হয়নি।');
+        return;
+      }
+    } catch (e) {
+      console.warn('Cancel API error:', e);
+    }
+
+    const updated = list.filter(x => x && x.id !== orderId);
+    saveRecentOrders(updated);
+    renderRecentOrdersPanel();
+
+    if (activeTrackerOrderId === orderId) {
+      $('trackerOverlay').classList.add('hidden');
+      activeTrackerOrderId = null;
+      alert('✓ আপনার প্রিন্ট অর্ডারটি সফলভাবে বাতিল ও ডিলিট করা হয়েছে।');
+    }
+  };
+
+  if ($('btnClearRecentPrints')) {
+    $('btnClearRecentPrints').addEventListener('click', async () => {
+      const list = loadRecentOrders();
+      if (!list.length) {
+        alert('মুছে ফেলার মতো কোনো প্রিন্ট ইতিহাস নেই।');
+        return;
+      }
+      if (!confirm('আপনি কি আপনার সাম্প্রতিক সব প্রিন্ট ইতিহাস মুছে ফেলতে চান?')) return;
+      const ids = list.map(x => x.id).filter(Boolean);
+      try {
+        await fetch('/api/orders/purge-customer-history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids })
+        });
+      } catch (e) {}
+      saveRecentOrders([]);
+      renderRecentOrdersPanel();
+      if ($('recentPrintsPanel')) $('recentPrintsPanel').classList.add('hidden');
+    });
+  }
+
+  if ($('btnTrackerCancelOrder')) {
+    $('btnTrackerCancelOrder').addEventListener('click', () => {
+      if (!activeTrackerOrderId) return;
+      window.deleteCustomerRecentOrder(activeTrackerOrderId);
+    });
+  }
 
   // ── FILE TRANSFER (customer -> shop) ─────────────────────────────────────
   let trFile = null;
