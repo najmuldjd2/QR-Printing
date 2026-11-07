@@ -1877,6 +1877,7 @@
     if (f.size > MAX_BYTES) { alert('ফাইলের সাইজ সর্বোচ্চ ৫০ MB হতে পারবে।'); return; }
     trFile = f;
     $('trFileLabel').innerText = `✓ ${f.name} (${fmtSize(f.size)})`;
+    if ($('trSuccess')) $('trSuccess').classList.add('hidden');
   }
   $('trFileInput').addEventListener('change', (e) => {
     handleTrPicked(e.target.files[0]);
@@ -1888,8 +1889,6 @@
       e.target.value = '';
     });
   }
-    $('trSuccess').classList.add('hidden');
-  });
 
   $('btnTrSend').addEventListener('click', async () => {
     if (!trFile) { alert('আগে একটি ফাইল বাছাই করুন।'); return; }
