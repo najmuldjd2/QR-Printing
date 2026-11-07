@@ -416,7 +416,9 @@
   if ($('nidFrontCameraInput')) $('nidFrontCameraInput').addEventListener('change', (e) => onNidPicked('Front', e.target.files[0]));
   if ($('nidBackCameraInput')) $('nidBackCameraInput').addEventListener('change', (e) => onNidPicked('Back', e.target.files[0]));
 
-  btnMergeNid.addEventListener('click', async () => {
+  btnMergeNid.addEventListener('click', () => doMergeNid());
+
+  async function doMergeNid() {
     if (!nidFrontFile || !nidBackFile) return;
     dropzoneNid.classList.add('hidden');
     progressLabel.innerText = 'NID ছবি আপলোড ও প্রসেসিং হচ্ছে...';
@@ -440,7 +442,51 @@
       alert(res.json.detail || 'NID ছবি প্রসেসিং ব্যর্থ হয়েছে।');
       dropzoneNid.classList.remove('hidden');
     }
-  });
+  }
+
+  // ── Live camera capture → straight into the editing (crop) panel ─────────
+  function camOpen(title, cb) {
+    if (window.QRCamera) window.QRCamera.open({ title, facing: 'environment', onCapture: cb });
+    else alert('ক্যামেরা মডিউল লোড হয়নি, পেজ রিফ্রেশ করুন।');
+  }
+
+  window.cameraCaptureDocument = function () {
+    camOpen('📷 ডকুমেন্ট / ছবি তুলুন', async (file) => {
+      await handleFileUpload(file);
+      if (uploadedFile && uploadedFile.file_type === 'image' && !uploadedFile.is_nid) {
+        window.openCropModal('front');
+      }
+    });
+  };
+
+  window.cameraCaptureNid = function (side) {
+    camOpen(side === 'Back' ? '🪪 NID পেছনের পিঠ তুলুন' : '🪪 NID সামনের পিঠ তুলুন', async (file) => {
+      onNidPicked(side, file);
+      if (nidFrontFile && nidBackFile) {
+        await doMergeNid();
+        if (uploadedFile && uploadedFile.is_nid) window.openCropModal(side === 'Back' ? 'back' : 'front');
+      } else {
+        // first side captured – offer the other side right away
+        const other = side === 'Front' ? 'Back' : 'Front';
+        setTimeout(() => {
+          if (confirm(side === 'Front' ? 'সামনের পিঠ তোলা হয়েছে। এখন পেছনের পিঠ তুলবেন?' : 'পেছনের পিঠ তোলা হয়েছে। এখন সামনের পিঠ তুলবেন?')) {
+            window.cameraCaptureNid(other);
+          }
+        }, 150);
+      }
+    });
+  };
+
+  window.cameraCaptureStudioPhoto = function () {
+    camOpen('📸 ফটো স্টুডিও – ছবি তুলুন', async (file) => {
+      await window.handleAddStudioPhoto({ files: [file], value: '' });
+      if (uploadedFile && uploadedFile.file_type === 'image') window.openCropModal('front');
+    });
+  };
+
+  window.cameraCaptureTransfer = function () {
+    camOpen('📷 ফাইল পাঠাতে ছবি তুলুন', (file) => handleTrPicked(file));
+  };
 
   function nidPreviewUrl(width) {
     const orient = checked('orientation') || 'portrait';

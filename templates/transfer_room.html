@@ -157,7 +157,7 @@
         <button type="button" onclick="event.stopPropagation(); document.getElementById('fileInput').click();" class="px-3.5 py-1.5 bg-white border border-gray-300 hover:border-pink-400 hover:text-pink-600 rounded-xl text-xs font-bold text-gray-700 shadow-xs transition flex items-center gap-1.5">
           <span>📁</span> <span>ফাইল বা গ্যালারি</span>
         </button>
-        <button type="button" onclick="event.stopPropagation(); document.getElementById('cameraInput').click();" class="px-3.5 py-1.5 bg-pink-50 border border-pink-300 hover:bg-pink-100 text-pink-700 rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5">
+        <button type="button" onclick="event.stopPropagation(); window.QRCamera.open({ title: '📷 ফাইল পাঠাতে ছবি তুলুন', onCapture: (f) => uploadFiles([f]) });" class="px-3.5 py-1.5 bg-pink-50 border border-pink-300 hover:bg-pink-100 text-pink-700 rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5">
           <span>📷</span> <span>ক্যামেরা দিয়ে ছবি তুলুন</span>
         </button>
       </div>
@@ -392,5 +392,6 @@
   </script>
 {% endif %}
 </div>
+  <script src="/static/camera_capture.js?v=2026110702"></script>
 </body>
 </html>

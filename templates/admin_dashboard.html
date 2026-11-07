@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ড্যাশবোর্ড | {{ shop.name }}</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/static/camera_capture.js?v=2026110702"></script>
   <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
@@ -809,7 +810,7 @@
               <!-- Upload Area -->
               <div>
                 <label class="block font-bold text-gray-700 mb-1">১. ছবি নির্বাচন বা ড্রপ করুন:</label>
-                <div id="adminStudioDropzone" class="border-2 border-dashed border-pink-300 hover:border-pink-500 rounded-xl p-4 text-center cursor-pointer bg-pink-50/20 hover:bg-pink-50/50 transition">
+                <div id="adminStudioDropzone" onclick="document.getElementById('adminStudioFileInput').click()" class="border-2 border-dashed border-pink-300 hover:border-pink-500 rounded-xl p-4 text-center cursor-pointer bg-pink-50/20 hover:bg-pink-50/50 transition">
                   <input type="file" id="adminStudioFileInput" accept="image/*" class="hidden" onchange="handleAdminStudioFile(this.files[0])">
                   <input type="file" id="adminStudioCameraInput" accept="image/*" capture="environment" class="hidden" onchange="handleAdminStudioFile(this.files[0])">
                   <span class="text-2xl block mb-1">🖼️</span>
@@ -819,7 +820,7 @@
                     <button type="button" onclick="event.stopPropagation(); document.getElementById('adminStudioFileInput').click();" class="px-3 py-1 bg-white border border-gray-300 hover:border-pink-400 hover:text-pink-600 rounded-lg text-xs font-bold text-gray-700 shadow-xs transition flex items-center gap-1">
                       <span>📁</span> <span>গ্যালারি / ফাইল</span>
                     </button>
-                    <button type="button" onclick="event.stopPropagation(); document.getElementById('adminStudioCameraInput').click();" class="px-3 py-1 bg-pink-50 border border-pink-300 hover:bg-pink-100 text-pink-700 rounded-lg text-xs font-bold shadow-xs transition flex items-center gap-1">
+                    <button type="button" onclick="event.stopPropagation(); adminCameraCapture('studio');" class="px-3 py-1 bg-pink-50 border border-pink-300 hover:bg-pink-100 text-pink-700 rounded-lg text-xs font-bold shadow-xs transition flex items-center gap-1">
                       <span>📷</span> <span>ক্যামেরা দিয়ে ছবি তুলুন</span>
                     </button>
                   </div>
@@ -973,7 +974,7 @@
                     <button type="button" onclick="document.getElementById('adminNidFrontInput').click()" class="flex-1 py-1 px-1 bg-white border border-gray-300 hover:bg-pink-50 rounded-lg font-bold text-[11px] text-gray-700 flex items-center justify-center gap-1">
                       <span>📁</span> <span>গ্যালারি</span>
                     </button>
-                    <button type="button" onclick="document.getElementById('adminNidFrontCameraInput').click()" class="flex-1 py-1 px-1 bg-pink-50 border border-pink-300 hover:bg-pink-100 text-pink-700 rounded-lg font-bold text-[11px] flex items-center justify-center gap-1">
+                    <button type="button" onclick="adminCameraCapture('nid_front')" class="flex-1 py-1 px-1 bg-pink-50 border border-pink-300 hover:bg-pink-100 text-pink-700 rounded-lg font-bold text-[11px] flex items-center justify-center gap-1">
                       <span>📷</span> <span>ক্যামেরা</span>
                     </button>
                   </div>
@@ -993,7 +994,7 @@
                     <button type="button" onclick="document.getElementById('adminNidBackInput').click()" class="flex-1 py-1 px-1 bg-white border border-gray-300 hover:bg-pink-50 rounded-lg font-bold text-[11px] text-gray-700 flex items-center justify-center gap-1">
                       <span>📁</span> <span>গ্যালারি</span>
                     </button>
-                    <button type="button" onclick="document.getElementById('adminNidBackCameraInput').click()" class="flex-1 py-1 px-1 bg-pink-50 border border-pink-300 hover:bg-pink-100 text-pink-700 rounded-lg font-bold text-[11px] flex items-center justify-center gap-1">
+                    <button type="button" onclick="adminCameraCapture('nid_back')" class="flex-1 py-1 px-1 bg-pink-50 border border-pink-300 hover:bg-pink-100 text-pink-700 rounded-lg font-bold text-[11px] flex items-center justify-center gap-1">
                       <span>📷</span> <span>ক্যামেরা</span>
                     </button>
                   </div>
@@ -2347,6 +2348,22 @@
       }
     }
 
+
+    // Live camera capture -> straight into the crop/edit panel
+    function adminCameraCapture(target) {
+      if (!window.QRCamera) { alert('ক্যামেরা মডিউল লোড হয়নি, পেজ রিফ্রেশ করুন।'); return; }
+      const titles = { studio: '📷 ছবি তুলুন', nid_front: '🪪 NID সামনের পিঠ তুলুন', nid_back: '🪪 NID পেছনের পিঠ তুলুন' };
+      window.QRCamera.open({
+        title: titles[target] || '📷 ছবি তুলুন',
+        facing: 'environment',
+        onCapture: (file) => {
+          if (target === 'studio') handleAdminStudioFile(file);
+          else if (target === 'nid_front') handleAdminNidFile('front', file);
+          else if (target === 'nid_back') handleAdminNidFile('back', file);
+          openAdminActiveCrop(target);
+        }
+      });
+    }
     async function handleAdminStudioFile(file) {
       if (!file) return;
       adminStudioFile = file;

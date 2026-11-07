@@ -104,7 +104,7 @@
           <button type="button" onclick="event.stopPropagation(); document.getElementById('fileInput').click();" class="px-3.5 py-1.5 bg-white border border-gray-300 hover:border-pink-400 hover:text-pink-600 rounded-xl text-xs font-bold text-gray-700 shadow-xs transition flex items-center gap-1.5">
             <span>📁</span> <span>ফাইল বা গ্যালারি</span>
           </button>
-          <button type="button" onclick="event.stopPropagation(); document.getElementById('cameraFileInput').click();" class="px-3.5 py-1.5 bg-pink-50 border border-pink-300 hover:bg-pink-100 text-pink-700 rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5">
+          <button type="button" onclick="event.stopPropagation(); window.cameraCaptureDocument();" class="px-3.5 py-1.5 bg-pink-50 border border-pink-300 hover:bg-pink-100 text-pink-700 rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5">
             <span>📷</span> <span>ক্যামেরা দিয়ে ছবি তুলুন</span>
           </button>
         </div>
@@ -125,7 +125,7 @@
               <button type="button" onclick="event.stopPropagation(); document.getElementById('nidFrontInput').click();" class="flex-1 py-1 px-1 bg-white border border-gray-300 hover:bg-pink-50 rounded-lg text-[10px] font-bold text-gray-700 flex items-center justify-center gap-0.5">
                 <span>📁</span> <span>গ্যালারি</span>
               </button>
-              <button type="button" onclick="event.stopPropagation(); document.getElementById('nidFrontCameraInput').click();" class="flex-1 py-1 px-1 bg-pink-50 border border-pink-300 hover:bg-pink-100 text-pink-700 rounded-lg text-[10px] font-bold flex items-center justify-center gap-0.5">
+              <button type="button" onclick="event.stopPropagation(); window.cameraCaptureNid('Front');" class="flex-1 py-1 px-1 bg-pink-50 border border-pink-300 hover:bg-pink-100 text-pink-700 rounded-lg text-[10px] font-bold flex items-center justify-center gap-0.5">
                 <span>📷</span> <span>ক্যামেরা</span>
               </button>
             </div>
@@ -143,7 +143,7 @@
               <button type="button" onclick="event.stopPropagation(); document.getElementById('nidBackInput').click();" class="flex-1 py-1 px-1 bg-white border border-gray-300 hover:bg-pink-50 rounded-lg text-[10px] font-bold text-gray-700 flex items-center justify-center gap-0.5">
                 <span>📁</span> <span>গ্যালারি</span>
               </button>
-              <button type="button" onclick="event.stopPropagation(); document.getElementById('nidBackCameraInput').click();" class="flex-1 py-1 px-1 bg-pink-50 border border-pink-300 hover:bg-pink-100 text-pink-700 rounded-lg text-[10px] font-bold flex items-center justify-center gap-0.5">
+              <button type="button" onclick="event.stopPropagation(); window.cameraCaptureNid('Back');" class="flex-1 py-1 px-1 bg-pink-50 border border-pink-300 hover:bg-pink-100 text-pink-700 rounded-lg text-[10px] font-bold flex items-center justify-center gap-0.5">
                 <span>📷</span> <span>ক্যামেরা</span>
               </button>
             </div>
@@ -467,7 +467,7 @@
             <button type="button" id="btnAddStudioPhoto" onclick="document.getElementById('inputAddStudioPhoto').click()" class="px-2.5 py-1 bg-white border border-gray-300 hover:bg-pink-50 text-gray-700 rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-xs transition" title="গ্যালারি বা ফাইল থেকে ছবি বাছুন">
               <span>📁</span> <span>গ্যালারি</span>
             </button>
-            <button type="button" id="btnAddStudioCameraPhoto" onclick="document.getElementById('inputAddStudioCameraPhoto').click()" class="px-2.5 py-1 bg-pink-600 hover:bg-pink-700 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-sm transition" title="ক্যামেরা দিয়ে সরাসরি ছবি তুলুন">
+            <button type="button" id="btnAddStudioCameraPhoto" onclick="window.cameraCaptureStudioPhoto()" class="px-2.5 py-1 bg-pink-600 hover:bg-pink-700 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-sm transition" title="ক্যামেরা দিয়ে সরাসরি ছবি তুলুন">
               <span>📷</span> <span>ক্যামেরা</span>
             </button>
           </div>
@@ -700,7 +700,7 @@
             <button type="button" onclick="event.stopPropagation(); document.getElementById('trFileInput').click();" class="px-3.5 py-1.5 bg-white border border-gray-300 hover:border-pink-400 hover:text-pink-600 rounded-xl text-xs font-bold text-gray-700 shadow-xs transition flex items-center gap-1.5">
               <span>📁</span> <span>ফাইল বা গ্যালারি</span>
             </button>
-            <button type="button" onclick="event.stopPropagation(); document.getElementById('trCameraInput').click();" class="px-3.5 py-1.5 bg-pink-50 border border-pink-300 hover:bg-pink-100 text-pink-700 rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5">
+            <button type="button" onclick="event.stopPropagation(); window.cameraCaptureTransfer();" class="px-3.5 py-1.5 bg-pink-50 border border-pink-300 hover:bg-pink-100 text-pink-700 rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5">
               <span>📷</span> <span>ক্যামেরা দিয়ে ছবি তুলুন</span>
             </button>
           </div>
@@ -1361,6 +1361,7 @@
       rate_stamp: {{ shop.rate_stamp | default(2.0, true) }}
     };
   </script>
-  <script src="/static/customer_print.js?v=2026110701"></script>
+  <script src="/static/camera_capture.js?v=2026110702"></script>
+  <script src="/static/customer_print.js?v=2026110702"></script>
 </body>
 </html>
