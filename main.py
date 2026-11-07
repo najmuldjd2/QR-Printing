@@ -2973,7 +2973,7 @@ async def customer_create_order(request: Request):
     public_order = {k: v for k, v in order_data.items() if k != "file_path"}
     await manager.notify_admin(shop["id"], {"event": "NEW_ORDER", "order": public_order})
 
-    return {"success": True, "order_id": order_id, "total_price": round(total_price, 2)}
+    return {"success": True, "order_id": order_id, "total_price": round(total_price, 2), "order": public_order}
 
 
 @app.post("/api/order/{order_id}/pay")

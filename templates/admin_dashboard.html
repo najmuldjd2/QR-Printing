@@ -721,6 +721,9 @@
           <button type="button" onclick="saveOrderEdits(false)" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition shadow">
             💾 শুধু সংরক্ষণ করুন
           </button>
+          <button type="button" onclick="printCurrentEditOrderInBrowser()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition shadow flex items-center gap-1">
+            <span>🌐</span> <span>ব্রাউজারে প্রিন্ট</span>
+          </button>
           <button type="button" onclick="saveOrderEdits(true)" class="px-5 py-2 bg-green-600 hover:bg-green-700 text-white font-bold text-xs rounded-xl transition shadow flex items-center gap-1">
             <span>🖨️</span> <span>আপডেট ও এখনই প্রিন্ট দিন</span>
           </button>
@@ -943,13 +946,18 @@
               </div>
 
               <!-- Action Buttons -->
-              <div class="w-full grid grid-cols-2 gap-2 pt-1">
-                <button type="button" onclick="submitAdminStudioPrint(false)" class="py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow flex items-center justify-center gap-1.5 transition">
-                  <span>🖨️</span> <span>সরাসরি প্রিন্ট (Agent)</span>
+              <div class="w-full space-y-2 pt-1">
+                <button type="button" onclick="submitAdminStudioPrint(false, true)" class="w-full py-2.5 px-3 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white rounded-xl text-xs font-bold shadow flex items-center justify-center gap-1.5 transition">
+                  <span>👁️</span> <span>প্রিন্ট প্রিভিউ দেখুন ও প্রিন্ট নিশ্চিত করুন</span>
                 </button>
-                <button type="button" onclick="submitAdminStudioPrint(true)" class="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow flex items-center justify-center gap-1.5 transition">
-                  <span>🌐</span> <span>ব্রাউজারে প্রিন্ট</span>
-                </button>
+                <div class="grid grid-cols-2 gap-2">
+                  <button type="button" onclick="submitAdminStudioPrint(false, true)" class="py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow flex items-center justify-center gap-1.5 transition">
+                    <span>🖨️</span> <span>সরাসরি প্রিন্ট (Agent)</span>
+                  </button>
+                  <button type="button" onclick="submitAdminStudioPrint(true, true)" class="py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow flex items-center justify-center gap-1.5 transition">
+                    <span>🌐</span> <span>ব্রাউজারে প্রিন্ট</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1008,7 +1016,7 @@
               <div class="grid grid-cols-2 gap-2 pt-2 border-t">
                 <div>
                   <label class="block font-bold text-gray-700 mb-1">রঙ:</label>
-                  <select id="adminNidColor" class="w-full px-2.5 py-1.5 border rounded-lg bg-white font-bold text-gray-800">
+                  <select id="adminNidColor" onchange="onAdminNidColorChange()" class="w-full px-2.5 py-1.5 border rounded-lg bg-white font-bold text-gray-800">
                     <option value="color">কালার (Color)</option>
                     <option value="bw">সাদাকালো (B&W)</option>
                   </select>
@@ -1024,20 +1032,57 @@
                 </div>
               </div>
 
-              <div class="pt-2 border-t">
-                <button type="button" id="btnAdminMergeNid" onclick="submitAdminNidPrint(false)" disabled class="w-full py-2.5 bg-gray-200 text-gray-500 font-bold text-xs rounded-xl transition cursor-not-allowed">
-                  দুটো ছবি দিয়ে সরাসরি NID প্রিন্ট করুন
+              <!-- NID Action Buttons -->
+              <div class="pt-2 border-t space-y-2">
+                <button type="button" id="btnAdminMergeNid" onclick="submitAdminNidPrint(false, true)" disabled class="w-full py-2.5 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-700 hover:to-rose-700 text-white font-bold text-xs rounded-xl shadow transition cursor-not-allowed opacity-50 flex items-center justify-center gap-1.5">
+                  <span>👁️</span> <span>প্রিন্ট প্রিভিউ দেখুন ও প্রিন্ট নিশ্চিত করুন</span>
                 </button>
+                <div class="grid grid-cols-2 gap-2">
+                  <button type="button" id="btnAdminNidAgent" onclick="submitAdminNidPrint(false, true)" disabled class="py-2 px-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow transition cursor-not-allowed opacity-50 flex items-center justify-center gap-1">
+                    <span>🖨️</span> <span>সরাসরি প্রিন্ট (Agent)</span>
+                  </button>
+                  <button type="button" id="btnAdminNidBrowser" onclick="submitAdminNidPrint(true, true)" disabled class="py-2 px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow transition cursor-not-allowed opacity-50 flex items-center justify-center gap-1">
+                    <span>🌐</span> <span>ব্রাউজারে প্রিন্ট</span>
+                  </button>
+                </div>
               </div>
             </div>
 
-            <!-- Right Column: NID Help / Preview -->
-            <div class="lg:col-span-6 bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col items-center justify-center text-center space-y-3 min-h-[320px]">
-              <span class="text-4xl">🪪</span>
-              <h4 class="font-bold text-gray-800 text-sm">স্মার্ট NID প্রিন্টিং শিট</h4>
-              <p class="text-xs text-gray-500 max-w-sm">
-                সামনের ও পেছনের পিঠ সিলেক্ট করে ক্রপ বাটনে চাপ দিন। ক্যামস্ক্যানার স্টাইলে বাঁকা ছবি স্বয়ংক্রিয়ভাবে সোজা হয়ে যাবে এবং আসল ৮৫.৬ × ৫৪ মিমি সাইজে A4 পাতায় সেট হবে।
-              </p>
+            <!-- Right Column: NID Live Sheet Preview -->
+            <div class="lg:col-span-6 bg-slate-100 rounded-2xl p-4 border border-slate-200 flex flex-col items-center justify-between min-h-[460px]">
+              <div class="w-full flex items-center justify-between mb-2">
+                <span class="font-bold text-xs text-gray-700 flex items-center gap-1.5">
+                  <span>👁️</span> <span>কিভাবে প্রিন্ট হবে (A4 NID লাইভ প্রিভিউ)</span>
+                </span>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                  A4 • আসল সাইজ (৮৫.৬ × ৫৪ মিমি)
+                </span>
+              </div>
+
+              <div class="relative bg-white rounded-xl shadow-inner border border-gray-300 p-2 flex items-center justify-center w-full flex-1 max-h-[380px] overflow-hidden">
+                <!-- Empty State -->
+                <div id="adminNidPreviewEmpty" class="text-center p-6 space-y-2">
+                  <span class="text-4xl block">🪪</span>
+                  <p class="font-bold text-gray-700 text-xs">NID কার্ডের উভয় পিঠ আপলোড করুন</p>
+                  <p class="text-[11px] text-gray-500 max-w-xs">
+                    সামনের ও পেছনের ছবি আপলোড বা ক্রপ করলে এখানে লাইভ প্রিন্ট শিট স্বয়ংক্রিয়ভাবে তৈরি হবে।
+                  </p>
+                </div>
+                <!-- Loading Spinner -->
+                <div id="adminNidPreviewLoader" class="hidden absolute inset-0 bg-white/80 backdrop-blur-xs flex flex-col items-center justify-center gap-2 z-10 text-xs font-bold text-gray-700">
+                  <div class="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+                  <span>NID শিট তৈরি হচ্ছে...</span>
+                </div>
+                <!-- Sheet Image -->
+                <img id="adminNidPreviewImg" src="" class="hidden max-h-full max-w-full object-contain rounded shadow-md" alt="NID Sheet Preview">
+              </div>
+
+              <div class="w-full pt-2.5 flex items-center justify-between text-[11px] text-gray-600 border-t mt-2">
+                <span>💡 উভয় পিঠ কার্ডের আসল সাইজে পাশাপাশি সেট হবে</span>
+                <button type="button" onclick="refreshAdminNidPreview()" class="text-emerald-700 hover:text-emerald-800 font-bold flex items-center gap-1">
+                  <span>↻</span> <span>রিফ্রেশ</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1045,15 +1090,15 @@
     </div>
   </div>
 
-  <!-- Admin Order Crop & Straighten Modal (CamScanner 4-Corner + Cropper.js with Custom inch/px/mm) -->
+  <!-- Admin Order Crop & Straighten Modal (CamScanner 4-Corner + Cropper.js with Custom inch/px/mm & Color Enhance) -->
   <div id="adminOrderCropModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 hidden">
-    <div class="bg-white max-w-xl w-full rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-200">
-      <div class="px-4 py-3 bg-gray-900 text-white flex items-center justify-between">
-        <h3 class="font-bold text-sm flex items-center gap-2"><span>📐</span> <span>ছবি ক্রপ ও সোজা করুন (Smart Crop)</span></h3>
+    <div class="bg-white max-w-xl w-full rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-200 max-h-[96vh]">
+      <div class="px-4 py-3 bg-gray-900 text-white flex items-center justify-between shrink-0">
+        <h3 class="font-bold text-sm flex items-center gap-2"><span>📐</span> <span>ছবি ক্রপ, সোজা ও স্ক্যান কালার ঠিক করুন (Smart Crop & CamScanner)</span></h3>
         <button type="button" onclick="closeAdminOrderCropModal()" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
       </div>
 
-      <div class="p-3.5 space-y-3 text-xs">
+      <div class="p-3.5 space-y-3 text-xs overflow-y-auto">
         <!-- Cropper Mode Switcher -->
         <div class="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-xl">
           <button type="button" id="btnAdminCropModeBox" onclick="setAdminCropMode('box')" class="py-1.5 rounded-lg font-bold bg-pink-600 text-white shadow-sm flex items-center justify-center gap-1">
@@ -1066,8 +1111,8 @@
 
         <!-- Box Cropper Container -->
         <div id="adminBoxCropSection" class="space-y-2">
-          <div class="relative bg-gray-950 rounded-xl overflow-hidden flex items-center justify-center h-[320px] max-h-[46vh]">
-            <img id="adminCropTargetImg" src="" class="max-h-full max-w-full block" alt="Crop Target">
+          <div class="relative bg-gray-950 rounded-xl overflow-hidden flex items-center justify-center h-[290px] max-h-[40vh]">
+            <img id="adminCropTargetImg" src="" class="max-h-full max-w-full block transition-all duration-150" alt="Crop Target">
           </div>
           <div class="grid grid-cols-3 sm:grid-cols-6 gap-1 text-center">
             <button type="button" onclick="setAdminBoxCropRatio('free')" id="adminRatioFree" class="py-1 px-1.5 bg-pink-600 text-white font-bold rounded-lg shadow-xs">ফ্রি সাইজ</button>
@@ -1081,7 +1126,7 @@
 
         <!-- CamScanner 4-Corner Container -->
         <div id="adminCornerCropSection" class="hidden space-y-2">
-          <div class="relative bg-gray-950 rounded-xl overflow-hidden flex items-center justify-center h-[320px] max-h-[46vh] select-none touch-none" id="adminSmartContainer">
+          <div class="relative bg-gray-950 rounded-xl overflow-hidden flex items-center justify-center h-[290px] max-h-[40vh] select-none touch-none" id="adminSmartContainer">
             <canvas id="adminSmartCanvas" class="block cursor-crosshair touch-none"></canvas>
             <canvas id="adminSmartLoupeCanvas" width="130" height="130" class="absolute top-3 left-3 w-[110px] h-[110px] rounded-full border-2 border-white shadow-2xl z-20 pointer-events-none hidden bg-slate-900"></canvas>
           </div>
@@ -1108,16 +1153,66 @@
           </div>
           <div id="adminCropCustomBadge" class="hidden text-[10px] text-slate-700 font-mono bg-white p-1 rounded border border-slate-200 text-center font-bold"></div>
         </div>
+
+        <!-- CamScanner Quality & Color Correction (স্ক্যান এনহ্যান্স ও কালার ঠিক করুন) -->
+        <div class="p-3 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl border border-emerald-200 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-emerald-900 text-xs flex items-center gap-1.5">
+              <span>🎨</span> <span>CamScanner কোয়ালিটি ও স্ক্যান কালার এনহ্যান্স:</span>
+            </span>
+            <span id="adminCropActiveFilterBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">🖼️ আসল ছবি</span>
+          </div>
+
+          <!-- Filter buttons -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+            <button type="button" id="btnAdminCropFxOrig" onclick="selectAdminCropFilter('original')" class="p-1.5 rounded-lg border-2 border-emerald-600 bg-white font-bold text-center text-[11px] flex items-center justify-center gap-1 text-emerald-800 shadow-xs transition">
+              <span>🖼️</span> <span>আসল ছবি</span>
+            </button>
+            <button type="button" id="btnAdminCropFxMagic" onclick="selectAdminCropFilter('magic_color')" class="p-1.5 rounded-lg border border-gray-200 bg-white hover:border-emerald-500 font-bold text-center text-[11px] flex items-center justify-center gap-1 text-gray-700 transition">
+              <span>✨</span> <span>ম্যাজিক ক্লিয়ার</span>
+            </button>
+            <button type="button" id="btnAdminCropFxHd" onclick="selectAdminCropFilter('hd_clear')" class="p-1.5 rounded-lg border border-gray-200 bg-white hover:border-emerald-500 font-bold text-center text-[11px] flex items-center justify-center gap-1 text-gray-700 transition">
+              <span>💎</span> <span>HD ক্লিয়ার</span>
+            </button>
+            <button type="button" id="btnAdminCropFxBw" onclick="selectAdminCropFilter('bw_doc')" class="p-1.5 rounded-lg border border-gray-200 bg-white hover:border-emerald-500 font-bold text-center text-[11px] flex items-center justify-center gap-1 text-gray-700 transition">
+              <span>🖨️</span> <span>সাদাকালো স্ক্যান</span>
+            </button>
+          </div>
+
+          <!-- Fine-tuning Brightness & Contrast -->
+          <div class="grid grid-cols-2 gap-2 pt-2 border-t border-emerald-200/60 text-[11px]">
+            <div>
+              <div class="flex justify-between font-semibold text-gray-700 mb-0.5">
+                <span>☀️ ব্রাইটনেস:</span>
+                <span id="adminCropBrightnessVal" class="font-bold text-emerald-700 font-mono">০</span>
+              </div>
+              <input type="range" id="adminCropBrightnessInput" min="-50" max="50" value="0" oninput="onAdminCropSliderChange()" class="w-full accent-emerald-600 h-1.5 bg-gray-200 rounded-lg cursor-pointer">
+            </div>
+            <div>
+              <div class="flex justify-between font-semibold text-gray-700 mb-0.5">
+                <span>🌓 কন্ট্রাস্ট:</span>
+                <span id="adminCropContrastVal" class="font-bold text-emerald-700 font-mono">০</span>
+              </div>
+              <input type="range" id="adminCropContrastInput" min="-50" max="50" value="0" oninput="onAdminCropSliderChange()" class="w-full accent-emerald-600 h-1.5 bg-gray-200 rounded-lg cursor-pointer">
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Footer Buttons -->
-      <div class="p-3 bg-gray-50 border-t flex justify-end gap-2">
-        <button type="button" onclick="closeAdminOrderCropModal()" class="px-4 py-2 border rounded-xl text-xs font-bold text-gray-600">বাতিল</button>
-        <button type="button" id="btnSaveAdminCrop" onclick="saveAdminOrderCrop()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow flex items-center gap-1.5">
-          <span>✓</span> <span>ক্রপ সম্পন্ন ও সংরক্ষণ করুন</span>
+      <div class="p-3 bg-gray-50 border-t flex justify-between items-center gap-2 shrink-0">
+        <button type="button" onclick="resetAdminCropColor()" class="px-3 py-1.5 text-gray-600 hover:text-gray-800 text-xs font-bold flex items-center gap-1 bg-white border border-gray-300 rounded-xl hover:bg-gray-100 transition shadow-xs">
+          <span>↺</span> <span>কালার রিসেট</span>
         </button>
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="closeAdminOrderCropModal()" class="px-4 py-2 border rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100 transition">বাতিল</button>
+          <button type="button" id="btnSaveAdminCrop" onclick="saveAdminOrderCrop()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow flex items-center gap-1.5 transition">
+            <span>✓</span> <span>ক্রপ ও স্ক্যান কালার সংরক্ষণ</span>
+          </button>
+        </div>
       </div>
     </div>
+  </div>
   </div>
 
   <!-- Admin CamScanner Document & Photo Enhancer Modal -->
@@ -1679,6 +1774,16 @@
       } catch (e) {
         alert('সার্ভার এরর: ' + e);
       }
+    }
+
+    async function printCurrentEditOrderInBrowser() {
+      if (!currentEditingOrderId) return;
+      const targetOrderId = currentEditingOrderId;
+      if (editModalHasChanges) {
+        await saveOrderEdits(false);
+      }
+      closeEditModal();
+      await printOrderInBrowser(targetOrderId);
     }
 
     function addNewOrderRow(o) {
@@ -2609,7 +2714,7 @@
       }
     }
 
-    async function submitAdminStudioPrint(inBrowser = false) {
+    async function submitAdminStudioPrint(inBrowser = false, openEditor = true) {
       if (!adminStudioFile && !adminStudioFileId) {
         alert('দয়া করে আগে একটি ছবি আপলোড করুন।');
         return;
@@ -2667,6 +2772,18 @@
         const data = await res.json();
         if (data.order_id) {
           closeAdminStudioModal();
+          let orderObj = data.order;
+          if (!orderObj) {
+            try {
+              const oRes = await fetch(`/admin/order/${data.order_id}`);
+              orderObj = await oRes.json();
+            } catch(e) {}
+          }
+          if (openEditor && orderObj) {
+            openEditModal(orderObj);
+            showAdminToast('✓ ফটো স্টুডিও প্রিন্ট শিট প্রিভিউ লোড হয়েছে, যাচাই করে প্রিন্ট দিন');
+            return;
+          }
           if (inBrowser) {
             await printOrderInBrowser(data.order_id);
           } else {
@@ -2685,6 +2802,9 @@
     let adminNidBackFile = null;
     let adminNidFrontUrl = null;
     let adminNidBackUrl = null;
+    let adminNidToken = null;
+    let adminNidFileId = null;
+    let adminNidPreviewTimer = null;
 
     function handleAdminNidFile(side, file) {
       if (!file) return;
@@ -2709,16 +2829,70 @@
       }
 
       const btnMerge = document.getElementById('btnAdminMergeNid');
-      if (adminNidFrontFile && adminNidBackFile) {
-        btnMerge.disabled = false;
-        btnMerge.className = 'w-full py-2.5 bg-pink-600 hover:bg-pink-700 text-white font-bold text-xs rounded-xl shadow transition cursor-pointer';
-      } else {
-        btnMerge.disabled = true;
-        btnMerge.className = 'w-full py-2.5 bg-gray-200 text-gray-500 font-bold text-xs rounded-xl transition cursor-not-allowed';
+      const btnAgent = document.getElementById('btnAdminNidAgent');
+      const btnBrowser = document.getElementById('btnAdminNidBrowser');
+      const bothReady = !!(adminNidFrontFile && adminNidBackFile);
+
+      [btnMerge, btnAgent, btnBrowser].forEach(btn => {
+        if (!btn) return;
+        btn.disabled = !bothReady;
+        if (bothReady) {
+          btn.classList.remove('cursor-not-allowed', 'opacity-50');
+        } else {
+          btn.classList.add('cursor-not-allowed', 'opacity-50');
+        }
+      });
+
+      if (bothReady) {
+        refreshAdminNidPreview();
       }
     }
 
-    async function submitAdminNidPrint(inBrowser = false) {
+    async function refreshAdminNidPreview() {
+      if (!adminNidFrontFile || !adminNidBackFile) return;
+      clearTimeout(adminNidPreviewTimer);
+      adminNidPreviewTimer = setTimeout(async () => {
+        const loader = document.getElementById('adminNidPreviewLoader');
+        const emptyState = document.getElementById('adminNidPreviewEmpty');
+        const img = document.getElementById('adminNidPreviewImg');
+        if (loader) loader.classList.remove('hidden');
+
+        try {
+          const fd = new FormData();
+          fd.append('front', adminNidFrontFile);
+          fd.append('back', adminNidBackFile);
+          const upRes = await fetch('/api/upload-nid', { method: 'POST', body: fd });
+          const upData = await upRes.json();
+          if (upData.nid_token) {
+            adminNidToken = upData.nid_token;
+            adminNidFileId = upData.file_id;
+            const color = document.getElementById('adminNidColor') ? document.getElementById('adminNidColor').value : 'color';
+            img.src = `/api/nid-preview/${adminNidToken}?color=${color}&t=${Date.now()}`;
+            img.onload = () => {
+              if (loader) loader.classList.add('hidden');
+              if (emptyState) emptyState.classList.add('hidden');
+              img.classList.remove('hidden');
+            };
+            img.onerror = () => {
+              if (loader) loader.classList.add('hidden');
+            };
+          }
+        } catch (err) {
+          console.error('NID preview error:', err);
+          if (loader) loader.classList.add('hidden');
+        }
+      }, 250);
+    }
+
+    function onAdminNidColorChange() {
+      if (adminNidToken) {
+        const color = document.getElementById('adminNidColor') ? document.getElementById('adminNidColor').value : 'color';
+        const img = document.getElementById('adminNidPreviewImg');
+        if (img) img.src = `/api/nid-preview/${adminNidToken}?color=${color}&t=${Date.now()}`;
+      }
+    }
+
+    async function submitAdminNidPrint(inBrowser = false, openEditor = true) {
       if (!adminNidFrontFile || !adminNidBackFile) {
         alert('দয়া করে NID কার্ডের সামনের ও পেছনের দুই পিঠই নির্বাচন করুন।');
         return;
@@ -2728,16 +2902,16 @@
       fd.append('back', adminNidBackFile);
 
       const btn = document.getElementById('btnAdminMergeNid');
-      btn.disabled = true;
-      btn.innerText = '⏳ NID তৈরি হচ্ছে...';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span>⏳</span> <span>NID শিট তৈরি হচ্ছে...</span>';
+      }
 
       try {
         const upRes = await fetch('/api/upload-nid', { method: 'POST', body: fd });
         const upData = await upRes.json();
         if (!upData.file_id) {
           alert(upData.detail || 'NID আপলোড ব্যর্থ হয়েছে।');
-          btn.disabled = false;
-          btn.innerText = 'দুটো ছবি দিয়ে সরাসরি NID প্রিন্ট করুন';
           return;
         }
 
@@ -2764,6 +2938,18 @@
         const data = await res.json();
         if (data.order_id) {
           closeAdminStudioModal();
+          let orderObj = data.order;
+          if (!orderObj) {
+            try {
+              const oRes = await fetch(`/admin/order/${data.order_id}`);
+              orderObj = await oRes.json();
+            } catch(e) {}
+          }
+          if (openEditor && orderObj) {
+            openEditModal(orderObj);
+            showAdminToast('✓ NID প্রিন্ট শিট প্রিভিউ লোড হয়েছে, যাচাই করে প্রিন্ট দিন');
+            return;
+          }
           if (inBrowser) {
             await printOrderInBrowser(data.order_id);
           } else {
@@ -2773,10 +2959,12 @@
           alert(data.detail || 'অর্ডার তৈরি করা যায়নি।');
         }
       } catch (e) {
-        alert('NID প্রিন্ট অর্ডারে ত্রুটি: ' + e);
+        alert('NID প্রিন্ট অর্ডারে ত্রুটি: ' + e.message);
       } finally {
-        btn.disabled = false;
-        btn.innerText = 'দুটো ছবি দিয়ে সরাসরি NID প্রিন্ট করুন';
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>👁️</span> <span>প্রিন্ট প্রিভিউ দেখুন ও প্রিন্ট নিশ্চিত করুন</span>';
+        }
       }
     }
 
@@ -3152,8 +3340,104 @@
 
     let adminCamscanBaseCanvas = null;
 
-    function applyClientCropFilterToCanvas(baseCvs, fx) {
-      if (!baseCvs || fx === 'original' || fx === 'none') return baseCvs;
+    let adminCropFilter = 'original';
+    let adminCropBrightness = 0;
+    let adminCropContrast = 0;
+
+    function getAdminCropCssFilter(fx, brightness, contrast) {
+      const b = 1 + ((brightness || 0) / 100);
+      const c = 1 + ((contrast || 0) / 100);
+      if (fx === 'magic_color') {
+        return `contrast(${1.32 * c}) brightness(${1.12 * b}) saturate(1.1)`;
+      } else if (fx === 'hd_clear') {
+        return `contrast(${1.22 * c}) brightness(${1.06 * b}) saturate(1.15)`;
+      } else if (fx === 'bw_doc') {
+        return `grayscale(1) contrast(${1.85 * c}) brightness(${1.15 * b})`;
+      } else if (fx === 'grayscale') {
+        return `grayscale(1) contrast(${c}) brightness(${b})`;
+      } else {
+        return ((brightness || 0) !== 0 || (contrast || 0) !== 0) ? `contrast(${c}) brightness(${b})` : 'none';
+      }
+    }
+
+    function updateAdminCropFilterPreview() {
+      const cssFilter = getAdminCropCssFilter(adminCropFilter, adminCropBrightness, adminCropContrast);
+      const img = document.getElementById('adminCropTargetImg');
+      if (img) img.style.filter = (cssFilter === 'none' ? '' : cssFilter);
+
+      const cropperImgs = document.querySelectorAll('#adminBoxCropSection .cropper-container img');
+      cropperImgs.forEach(ci => { ci.style.filter = (cssFilter === 'none' ? '' : cssFilter); });
+
+      if (adminCropMode === 'corner') {
+        drawAdminSmartCrop();
+      }
+    }
+
+    function selectAdminCropFilter(fx) {
+      adminCropFilter = fx;
+      const fxs = {
+        original: 'btnAdminCropFxOrig',
+        magic_color: 'btnAdminCropFxMagic',
+        hd_clear: 'btnAdminCropFxHd',
+        bw_doc: 'btnAdminCropFxBw'
+      };
+      const badge = document.getElementById('adminCropActiveFilterBadge');
+      const badgeNames = {
+        original: '🖼️ আসল ছবি',
+        magic_color: '✨ ম্যাজিক ক্লিয়ার',
+        hd_clear: '💎 HD ক্লিয়ার',
+        bw_doc: '🖨️ সাদাকালো স্ক্যান'
+      };
+      if (badge && badgeNames[fx]) {
+        badge.innerText = badgeNames[fx];
+      }
+
+      Object.keys(fxs).forEach(k => {
+        const btn = document.getElementById(fxs[k]);
+        if (!btn) return;
+        if (k === fx) {
+          btn.className = 'p-1.5 rounded-lg border-2 border-emerald-600 bg-emerald-50 text-emerald-900 font-bold text-center text-[11px] flex items-center justify-center gap-1 shadow-xs transition';
+        } else {
+          btn.className = 'p-1.5 rounded-lg border border-gray-200 bg-white hover:border-emerald-500 font-bold text-center text-[11px] flex items-center justify-center gap-1 text-gray-700 transition';
+        }
+      });
+      updateAdminCropFilterPreview();
+    }
+
+    function onAdminCropSliderChange() {
+      const bInput = document.getElementById('adminCropBrightnessInput');
+      const cInput = document.getElementById('adminCropContrastInput');
+      adminCropBrightness = parseInt(bInput ? bInput.value : 0, 10) || 0;
+      adminCropContrast = parseInt(cInput ? cInput.value : 0, 10) || 0;
+
+      const bVal = document.getElementById('adminCropBrightnessVal');
+      const cVal = document.getElementById('adminCropContrastVal');
+      if (bVal) bVal.innerText = (adminCropBrightness > 0 ? '+' : '') + adminCropBrightness;
+      if (cVal) cVal.innerText = (adminCropContrast > 0 ? '+' : '') + adminCropContrast;
+
+      updateAdminCropFilterPreview();
+    }
+
+    function resetAdminCropColor() {
+      selectAdminCropFilter('original');
+      const bInput = document.getElementById('adminCropBrightnessInput');
+      const cInput = document.getElementById('adminCropContrastInput');
+      if (bInput) bInput.value = 0;
+      if (cInput) cInput.value = 0;
+      adminCropBrightness = 0;
+      adminCropContrast = 0;
+      const bVal = document.getElementById('adminCropBrightnessVal');
+      const cVal = document.getElementById('adminCropContrastVal');
+      if (bVal) bVal.innerText = '০';
+      if (cVal) cVal.innerText = '০';
+      updateAdminCropFilterPreview();
+    }
+
+    function applyClientCropFilterToCanvas(baseCvs, fx, brightness = 0, contrast = 0) {
+      if (!baseCvs) return baseCvs;
+      const isPlain = (!fx || fx === 'original' || fx === 'none');
+      if (isPlain && (brightness || 0) === 0 && (contrast || 0) === 0) return baseCvs;
+
       const w = baseCvs.width, h = baseCvs.height;
       const outCvs = document.createElement('canvas');
       outCvs.width = w;
@@ -3164,45 +3448,78 @@
       const d = imgD.data;
 
       // Sample 88th percentile luminance for white paper normalization
-      const lumHist = new Uint32Array(256);
-      const step = Math.max(4, ((d.length >> 2) / 8000) | 0) << 2;
-      let totalSamples = 0;
-      for (let i = 0; i < d.length; i += step) {
-        const l = (d[i] * 77 + d[i + 1] * 150 + d[i + 2] * 29) >> 8;
-        lumHist[l]++;
-        totalSamples++;
-      }
-      let acc = 0, whitePt = 225;
-      const targetCnt = totalSamples * 0.88;
-      for (let k = 0; k < 256; k++) {
-        acc += lumHist[k];
-        if (acc >= targetCnt) {
-          whitePt = Math.max(155, k);
-          break;
+      let invScale = 1.0;
+      if (fx === 'bw_doc' || fx === 'magic_color' || fx === 'hd_clear') {
+        const lumHist = new Uint32Array(256);
+        const step = Math.max(4, ((d.length >> 2) / 8000) | 0) << 2;
+        let totalSamples = 0;
+        for (let i = 0; i < d.length; i += step) {
+          const l = (d[i] * 77 + d[i + 1] * 150 + d[i + 2] * 29) >> 8;
+          lumHist[l]++;
+          totalSamples++;
         }
+        let acc = 0, whitePt = 225;
+        const targetCnt = totalSamples * 0.88;
+        for (let k = 0; k < 256; k++) {
+          acc += lumHist[k];
+          if (acc >= targetCnt) {
+            whitePt = Math.max(155, k);
+            break;
+          }
+        }
+        invScale = 255.0 / (whitePt * 0.94);
       }
 
-      const invScale = 255.0 / (whitePt * 0.94);
+      // Precompute contrast multiplier & brightness offset
+      const c = Math.max(-100, Math.min(100, contrast || 0));
+      const cFactor = (259 * (c + 255)) / (255 * (259 - c));
+      const bOffset = Math.max(-100, Math.min(100, brightness || 0)) * 1.5;
+
       for (let i = 0; i < d.length; i += 4) {
-        let r = Math.min(255, d[i] * invScale);
-        let g = Math.min(255, d[i + 1] * invScale);
-        let b = Math.min(255, d[i + 2] * invScale);
+        let r = d[i];
+        let g = d[i + 1];
+        let b = d[i + 2];
 
         if (fx === 'bw_doc') {
+          r = Math.min(255, r * invScale);
+          g = Math.min(255, g * invScale);
+          b = Math.min(255, b * invScale);
           const l = (r * 0.299 + g * 0.587 + b * 0.114);
           let v = l > 202 ? 255 : (l < 115 ? Math.max(0, (l - 65) * 0.5) : ((l - 115) / 87.0) * 255);
-          d[i] = d[i + 1] = d[i + 2] = v;
+          r = g = b = v;
         } else if (fx === 'magic_color') {
+          r = Math.min(255, r * invScale);
+          g = Math.min(255, g * invScale);
+          b = Math.min(255, b * invScale);
           r = r > 224 ? 255 : Math.max(0, Math.min(255, (r - 128) * 1.32 + 132));
           g = g > 224 ? 255 : Math.max(0, Math.min(255, (g - 128) * 1.32 + 132));
           b = b > 224 ? 255 : Math.max(0, Math.min(255, (b - 128) * 1.32 + 132));
-          d[i] = r; d[i + 1] = g; d[i + 2] = b;
         } else if (fx === 'hd_clear') {
+          r = Math.min(255, r * invScale);
+          g = Math.min(255, g * invScale);
+          b = Math.min(255, b * invScale);
           r = Math.max(0, Math.min(255, (r - 128) * 1.18 + 132));
           g = Math.max(0, Math.min(255, (g - 128) * 1.18 + 132));
           b = Math.max(0, Math.min(255, (g - 128) * 1.18 + 132));
-          d[i] = r; d[i + 1] = g; d[i + 2] = b;
+        } else if (fx === 'grayscale') {
+          const gray = (r * 0.299 + g * 0.587 + b * 0.114);
+          r = g = b = gray;
         }
+
+        if (c !== 0) {
+          r = Math.max(0, Math.min(255, cFactor * (r - 128) + 128));
+          g = Math.max(0, Math.min(255, cFactor * (g - 128) + 128));
+          b = Math.max(0, Math.min(255, cFactor * (b - 128) + 128));
+        }
+        if (bOffset !== 0) {
+          r = Math.max(0, Math.min(255, r + bOffset));
+          g = Math.max(0, Math.min(255, g + bOffset));
+          b = Math.max(0, Math.min(255, b + bOffset));
+        }
+
+        d[i] = r;
+        d[i + 1] = g;
+        d[i + 2] = b;
       }
       ctx.putImageData(imgD, 0, 0);
       return outCvs;
@@ -3400,6 +3717,7 @@
     function setupAndOpenAdminCropModal(srcUrl, target) {
       document.getElementById('adminOrderCropModal').classList.remove('hidden');
       adminActiveCropTarget = target;
+      resetAdminCropColor();
       
       const isCorner = target.startsWith('nid');
       adminCropMode = isCorner ? 'corner' : 'box';
@@ -3494,6 +3812,7 @@
         background: false,
         ready() {
           setAdminBoxCropRatio(adminCropActiveRatio);
+          updateAdminCropFilterPreview();
         }
       });
     }
@@ -3772,7 +4091,13 @@
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       // 1. Base Image
+      ctx.save();
+      const cssFilter = getAdminCropCssFilter(adminCropFilter, adminCropBrightness, adminCropContrast);
+      if (ctx.filter !== undefined && cssFilter && cssFilter !== 'none') {
+        ctx.filter = cssFilter;
+      }
       ctx.drawImage(adminCropImgElement, 0, 0, canvas.width, canvas.height);
+      ctx.restore();
 
       const cPts = adminSmartPts.map(pt => ({
         x: pt.x * canvas.width,
@@ -3971,6 +4296,11 @@
           resultCanvas = warpPerspectiveClientSide(adminCropImgElement, adminSmartPts, adminCropActiveRatio);
         }
         if (!resultCanvas) throw new Error('ক্রপ ক্যানভাস তৈরি করা যায়নি');
+
+        // Apply CamScanner scan enhancement & color corrections if active
+        if (adminCropFilter !== 'original' || adminCropBrightness !== 0 || adminCropContrast !== 0) {
+          resultCanvas = applyClientCropFilterToCanvas(resultCanvas, adminCropFilter, adminCropBrightness, adminCropContrast);
+        }
 
         const dataUrl = resultCanvas.toDataURL('image/jpeg', 0.95);
 
