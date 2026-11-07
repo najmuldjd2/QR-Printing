@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 """
 Photo Studio engine: passport / stamp / visa / custom-size photos laid out in neat rows on
@@ -8,7 +9,7 @@ All sizes are in millimetres; the sheet is rendered at the requested DPI
 (100 DPI for the live preview, 300 DPI for the file that is printed).
 """
 import re
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps
