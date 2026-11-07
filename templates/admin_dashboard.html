@@ -809,11 +809,20 @@
               <!-- Upload Area -->
               <div>
                 <label class="block font-bold text-gray-700 mb-1">১. ছবি নির্বাচন বা ড্রপ করুন:</label>
-                <div id="adminStudioDropzone" onclick="document.getElementById('adminStudioFileInput').click()" class="border-2 border-dashed border-pink-300 hover:border-pink-500 rounded-xl p-4 text-center cursor-pointer bg-pink-50/20 hover:bg-pink-50/50 transition">
+                <div id="adminStudioDropzone" class="border-2 border-dashed border-pink-300 hover:border-pink-500 rounded-xl p-4 text-center cursor-pointer bg-pink-50/20 hover:bg-pink-50/50 transition">
                   <input type="file" id="adminStudioFileInput" accept="image/*" class="hidden" onchange="handleAdminStudioFile(this.files[0])">
+                  <input type="file" id="adminStudioCameraInput" accept="image/*" capture="environment" class="hidden" onchange="handleAdminStudioFile(this.files[0])">
                   <span class="text-2xl block mb-1">🖼️</span>
                   <p class="font-bold text-gray-800" id="adminStudioFileLabel">ছবি ড্রপ করুন বা ক্লিক করে সিলেক্ট করুন</p>
                   <p class="text-[10px] text-gray-500 mt-0.5">JPG, PNG, WebP ইত্যাদি ছবি সরাসরি ব্যবহার করা যাবে</p>
+                  <div class="mt-2.5 flex items-center justify-center gap-2">
+                    <button type="button" onclick="event.stopPropagation(); document.getElementById('adminStudioFileInput').click();" class="px-3 py-1 bg-white border border-gray-300 hover:border-pink-400 hover:text-pink-600 rounded-lg text-xs font-bold text-gray-700 shadow-xs transition flex items-center gap-1">
+                      <span>📁</span> <span>গ্যালারি / ফাইল</span>
+                    </button>
+                    <button type="button" onclick="event.stopPropagation(); document.getElementById('adminStudioCameraInput').click();" class="px-3 py-1 bg-pink-50 border border-pink-300 hover:bg-pink-100 text-pink-700 rounded-lg text-xs font-bold shadow-xs transition flex items-center gap-1">
+                      <span>📷</span> <span>ক্যামেরা দিয়ে ছবি তুলুন</span>
+                    </button>
+                  </div>
                 </div>
                 <div id="adminStudioThumbRow" class="hidden flex items-center justify-between bg-slate-100 p-2 rounded-xl mt-2 border">
                   <div class="flex items-center gap-2 min-w-0">
@@ -956,12 +965,18 @@
                 <!-- Front Side Box -->
                 <div class="border-2 border-dashed border-gray-300 hover:border-pink-500 rounded-xl p-3 bg-gray-50 flex flex-col items-center justify-between">
                   <input type="file" id="adminNidFrontInput" accept="image/*" class="hidden" onchange="handleAdminNidFile('front', this.files[0])">
+                  <input type="file" id="adminNidFrontCameraInput" accept="image/*" capture="environment" class="hidden" onchange="handleAdminNidFile('front', this.files[0])">
                   <img id="adminNidFrontThumb" class="hidden w-full h-20 object-cover rounded-lg mb-1 border bg-white" alt="Front">
                   <div class="text-2xl mb-1" id="adminNidFrontIcon">🪪</div>
                   <p class="font-bold text-xs text-gray-800">১. সামনের পিঠ (Front)</p>
-                  <button type="button" onclick="document.getElementById('adminNidFrontInput').click()" class="mt-2 px-2.5 py-1 bg-white border border-gray-300 hover:bg-pink-50 rounded-lg font-bold text-[11px] text-gray-700">
-                    ছবি বাছুন
-                  </button>
+                  <div class="mt-2 flex items-center justify-center gap-1 w-full">
+                    <button type="button" onclick="document.getElementById('adminNidFrontInput').click()" class="flex-1 py-1 px-1 bg-white border border-gray-300 hover:bg-pink-50 rounded-lg font-bold text-[11px] text-gray-700 flex items-center justify-center gap-1">
+                      <span>📁</span> <span>গ্যালারি</span>
+                    </button>
+                    <button type="button" onclick="document.getElementById('adminNidFrontCameraInput').click()" class="flex-1 py-1 px-1 bg-pink-50 border border-pink-300 hover:bg-pink-100 text-pink-700 rounded-lg font-bold text-[11px] flex items-center justify-center gap-1">
+                      <span>📷</span> <span>ক্যামেরা</span>
+                    </button>
+                  </div>
                   <button type="button" id="btnAdminNidCropFront" onclick="openAdminActiveCrop('nid_front')" class="hidden mt-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-300 rounded text-[10px] font-bold">
                     ✂️ ক্রপ ও সোজা করুন
                   </button>
@@ -970,12 +985,18 @@
                 <!-- Back Side Box -->
                 <div class="border-2 border-dashed border-gray-300 hover:border-pink-500 rounded-xl p-3 bg-gray-50 flex flex-col items-center justify-between">
                   <input type="file" id="adminNidBackInput" accept="image/*" class="hidden" onchange="handleAdminNidFile('back', this.files[0])">
+                  <input type="file" id="adminNidBackCameraInput" accept="image/*" capture="environment" class="hidden" onchange="handleAdminNidFile('back', this.files[0])">
                   <img id="adminNidBackThumb" class="hidden w-full h-20 object-cover rounded-lg mb-1 border bg-white" alt="Back">
                   <div class="text-2xl mb-1" id="adminNidBackIcon">🔄</div>
                   <p class="font-bold text-xs text-gray-800">২. পেছনের পিঠ (Back)</p>
-                  <button type="button" onclick="document.getElementById('adminNidBackInput').click()" class="mt-2 px-2.5 py-1 bg-white border border-gray-300 hover:bg-pink-50 rounded-lg font-bold text-[11px] text-gray-700">
-                    ছবি বাছুন
-                  </button>
+                  <div class="mt-2 flex items-center justify-center gap-1 w-full">
+                    <button type="button" onclick="document.getElementById('adminNidBackInput').click()" class="flex-1 py-1 px-1 bg-white border border-gray-300 hover:bg-pink-50 rounded-lg font-bold text-[11px] text-gray-700 flex items-center justify-center gap-1">
+                      <span>📁</span> <span>গ্যালারি</span>
+                    </button>
+                    <button type="button" onclick="document.getElementById('adminNidBackCameraInput').click()" class="flex-1 py-1 px-1 bg-pink-50 border border-pink-300 hover:bg-pink-100 text-pink-700 rounded-lg font-bold text-[11px] flex items-center justify-center gap-1">
+                      <span>📷</span> <span>ক্যামেরা</span>
+                    </button>
+                  </div>
                   <button type="button" id="btnAdminNidCropBack" onclick="openAdminActiveCrop('nid_back')" class="hidden mt-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-300 rounded text-[10px] font-bold">
                     ✂️ ক্রপ ও সোজা করুন
                   </button>
@@ -2593,6 +2614,7 @@
       const targetPrinter = document.getElementById('adminStudioPrinterSelect').value || '';
 
       const orderPayload = {
+        shop_id: SHOP_ID,
         file_id: adminStudioFileId,
         paper_size: 'PHOTO',
         color_mode: color,
@@ -2705,6 +2727,7 @@
         const color = document.getElementById('adminNidColor').value || 'color';
         const targetPrinter = document.getElementById('adminNidPrinterSelect').value || '';
         const orderPayload = {
+          shop_id: SHOP_ID,
           file_id: upData.file_id,
           paper_size: 'NID',
           color_mode: color,

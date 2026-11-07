@@ -370,8 +370,11 @@
       try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
     }
     fileInput.value = '';
+    if ($('cameraFileInput')) $('cameraFileInput').value = '';
     $('nidFrontInput').value = '';
+    if ($('nidFrontCameraInput')) $('nidFrontCameraInput').value = '';
     $('nidBackInput').value = '';
+    if ($('nidBackCameraInput')) $('nidBackCameraInput').value = '';
     ['Front', 'Back'].forEach((side) => {
       $('nid' + side + 'Label').innerText = 'ছবি তুলুন/বাছুন';
       $('nid' + side + 'Thumb').classList.add('hidden');
@@ -410,6 +413,8 @@
   }
   $('nidFrontInput').addEventListener('change', (e) => onNidPicked('Front', e.target.files[0]));
   $('nidBackInput').addEventListener('change', (e) => onNidPicked('Back', e.target.files[0]));
+  if ($('nidFrontCameraInput')) $('nidFrontCameraInput').addEventListener('change', (e) => onNidPicked('Front', e.target.files[0]));
+  if ($('nidBackCameraInput')) $('nidBackCameraInput').addEventListener('change', (e) => onNidPicked('Back', e.target.files[0]));
 
   btnMergeNid.addEventListener('click', async () => {
     if (!nidFrontFile || !nidBackFile) return;
@@ -455,6 +460,11 @@
   // ── normal file upload ───────────────────────────────────────────────────
   dropzoneNormal.addEventListener('click', () => fileInput.click());
   fileInput.addEventListener('change', (e) => { if (e.target.files.length) handleFileUpload(e.target.files[0]); });
+  if ($('cameraFileInput')) {
+    $('cameraFileInput').addEventListener('change', (e) => {
+      if (e.target.files.length) handleFileUpload(e.target.files[0]);
+    });
+  }
   dropzoneNormal.addEventListener('dragover', (e) => { e.preventDefault(); dropzoneNormal.classList.add('border-pink-500'); });
   dropzoneNormal.addEventListener('dragleave', () => dropzoneNormal.classList.remove('border-pink-500'));
   dropzoneNormal.addEventListener('drop', (e) => {
@@ -1862,12 +1872,22 @@
   // ── FILE TRANSFER (customer -> shop) ─────────────────────────────────────
   let trFile = null;
   $('trDropzone').addEventListener('click', () => $('trFileInput').click());
-  $('trFileInput').addEventListener('change', (e) => {
-    const f = e.target.files[0];
+  function handleTrPicked(f) {
     if (!f) return;
-    if (f.size > MAX_BYTES) { alert('ফাইলের সাইজ সর্বোচ্চ ৫০ MB হতে পারবে।'); e.target.value = ''; return; }
+    if (f.size > MAX_BYTES) { alert('ফাইলের সাইজ সর্বোচ্চ ৫০ MB হতে পারবে।'); return; }
     trFile = f;
     $('trFileLabel').innerText = `✓ ${f.name} (${fmtSize(f.size)})`;
+  }
+  $('trFileInput').addEventListener('change', (e) => {
+    handleTrPicked(e.target.files[0]);
+    e.target.value = '';
+  });
+  if ($('trCameraInput')) {
+    $('trCameraInput').addEventListener('change', (e) => {
+      handleTrPicked(e.target.files[0]);
+      e.target.value = '';
+    });
+  }
     $('trSuccess').classList.add('hidden');
   });
 

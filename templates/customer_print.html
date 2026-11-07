@@ -94,32 +94,59 @@
       </div>
 
       <!-- Normal Dropzone -->
-      <div id="dropzoneNormal" class="border-2 border-dashed border-gray-300 hover:border-pink-500 rounded-xl p-6 text-center cursor-pointer transition bg-gray-50 hover:bg-pink-50/20">
+      <div id="dropzoneNormal" class="border-2 border-dashed border-gray-300 hover:border-pink-500 rounded-xl p-5 text-center cursor-pointer transition bg-gray-50 hover:bg-pink-50/20">
         <input type="file" id="fileInput" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.rtf,.txt,image/png,image/jpeg,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/csv,text/plain" class="hidden">
+        <input type="file" id="cameraFileInput" accept="image/*" capture="environment" class="hidden">
         <div class="text-3xl mb-1">📄</div>
-        <p class="font-bold text-gray-700 text-sm">ফাইল ড্রপ করুন অথবা ক্লিক করুন</p>
-        <p class="text-xs text-gray-500 mt-1">PDF, Word, Excel, PowerPoint (.pptx/.ppt), JPG, PNG (সর্বোচ্চ ৫০ MB)</p>
+        <p class="font-bold text-gray-700 text-sm">ফাইল ড্রপ করুন অথবা নির্বাচন করুন</p>
+        <p class="text-[11px] text-gray-500 mt-0.5">PDF, Word, Excel, PowerPoint (.pptx/.ppt), JPG, PNG (সর্বোচ্চ ৫০ MB)</p>
+        <div class="mt-3 flex items-center justify-center gap-2">
+          <button type="button" onclick="event.stopPropagation(); document.getElementById('fileInput').click();" class="px-3.5 py-1.5 bg-white border border-gray-300 hover:border-pink-400 hover:text-pink-600 rounded-xl text-xs font-bold text-gray-700 shadow-xs transition flex items-center gap-1.5">
+            <span>📁</span> <span>ফাইল বা গ্যালারি</span>
+          </button>
+          <button type="button" onclick="event.stopPropagation(); document.getElementById('cameraFileInput').click();" class="px-3.5 py-1.5 bg-pink-50 border border-pink-300 hover:bg-pink-100 text-pink-700 rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5">
+            <span>📷</span> <span>ক্যামেরা দিয়ে ছবি তুলুন</span>
+          </button>
+        </div>
       </div>
 
       <!-- NID 2-Image Upload Box (Shown when NID tab active) -->
       <div id="dropzoneNid" class="hidden space-y-3">
         <div class="grid grid-cols-2 gap-3 text-center">
           <!-- Front Side -->
-          <div id="nidFrontBox" class="border-2 border-dashed border-gray-300 hover:border-pink-500 rounded-xl p-4 bg-gray-50 hover:bg-pink-50/20 cursor-pointer">
+          <div id="nidFrontBox" class="border-2 border-dashed border-gray-300 hover:border-pink-500 rounded-xl p-3 bg-gray-50 hover:bg-pink-50/20 cursor-pointer flex flex-col items-center justify-between">
             <input type="file" id="nidFrontInput" accept="image/*" class="hidden">
+            <input type="file" id="nidFrontCameraInput" accept="image/*" capture="environment" class="hidden">
             <img id="nidFrontThumb" class="hidden w-full h-16 object-cover rounded-lg mb-1 border" alt="">
             <div class="text-2xl mb-1" id="nidFrontIcon">🪪</div>
             <p class="font-bold text-xs text-gray-800">১. সামনের পিঠ</p>
             <span class="text-[10px] text-gray-400" id="nidFrontLabel">ছবি তুলুন/বাছুন</span>
+            <div class="mt-2 flex items-center justify-center gap-1 w-full">
+              <button type="button" onclick="event.stopPropagation(); document.getElementById('nidFrontInput').click();" class="flex-1 py-1 px-1 bg-white border border-gray-300 hover:bg-pink-50 rounded-lg text-[10px] font-bold text-gray-700 flex items-center justify-center gap-0.5">
+                <span>📁</span> <span>গ্যালারি</span>
+              </button>
+              <button type="button" onclick="event.stopPropagation(); document.getElementById('nidFrontCameraInput').click();" class="flex-1 py-1 px-1 bg-pink-50 border border-pink-300 hover:bg-pink-100 text-pink-700 rounded-lg text-[10px] font-bold flex items-center justify-center gap-0.5">
+                <span>📷</span> <span>ক্যামেরা</span>
+              </button>
+            </div>
           </div>
 
           <!-- Back Side -->
-          <div id="nidBackBox" class="border-2 border-dashed border-gray-300 hover:border-pink-500 rounded-xl p-4 bg-gray-50 hover:bg-pink-50/20 cursor-pointer">
+          <div id="nidBackBox" class="border-2 border-dashed border-gray-300 hover:border-pink-500 rounded-xl p-3 bg-gray-50 hover:bg-pink-50/20 cursor-pointer flex flex-col items-center justify-between">
             <input type="file" id="nidBackInput" accept="image/*" class="hidden">
+            <input type="file" id="nidBackCameraInput" accept="image/*" capture="environment" class="hidden">
             <img id="nidBackThumb" class="hidden w-full h-16 object-cover rounded-lg mb-1 border" alt="">
             <div class="text-2xl mb-1" id="nidBackIcon">🔄</div>
             <p class="font-bold text-xs text-gray-800">২. পেছনের পিঠ</p>
             <span class="text-[10px] text-gray-400" id="nidBackLabel">ছবি তুলুন/বাছুন</span>
+            <div class="mt-2 flex items-center justify-center gap-1 w-full">
+              <button type="button" onclick="event.stopPropagation(); document.getElementById('nidBackInput').click();" class="flex-1 py-1 px-1 bg-white border border-gray-300 hover:bg-pink-50 rounded-lg text-[10px] font-bold text-gray-700 flex items-center justify-center gap-0.5">
+                <span>📁</span> <span>গ্যালারি</span>
+              </button>
+              <button type="button" onclick="event.stopPropagation(); document.getElementById('nidBackCameraInput').click();" class="flex-1 py-1 px-1 bg-pink-50 border border-pink-300 hover:bg-pink-100 text-pink-700 rounded-lg text-[10px] font-bold flex items-center justify-center gap-0.5">
+                <span>📷</span> <span>ক্যামেরা</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -436,10 +463,16 @@
           <span class="font-bold text-gray-800 flex items-center gap-1.5">
             <span>📸</span> <span>যুক্ত করা ছবিসমূহ (ফটো পুল):</span>
           </span>
-          <button type="button" id="btnAddStudioPhoto" onclick="document.getElementById('inputAddStudioPhoto').click()" class="px-2.5 py-1 bg-pink-600 hover:bg-pink-700 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-sm transition">
-            <span>➕</span> <span>নতুন ছবি যোগ করুন</span>
-          </button>
+          <div class="flex items-center gap-1.5">
+            <button type="button" id="btnAddStudioPhoto" onclick="document.getElementById('inputAddStudioPhoto').click()" class="px-2.5 py-1 bg-white border border-gray-300 hover:bg-pink-50 text-gray-700 rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-xs transition" title="গ্যালারি বা ফাইল থেকে ছবি বাছুন">
+              <span>📁</span> <span>গ্যালারি</span>
+            </button>
+            <button type="button" id="btnAddStudioCameraPhoto" onclick="document.getElementById('inputAddStudioCameraPhoto').click()" class="px-2.5 py-1 bg-pink-600 hover:bg-pink-700 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-sm transition" title="ক্যামেরা দিয়ে সরাসরি ছবি তুলুন">
+              <span>📷</span> <span>ক্যামেরা</span>
+            </button>
+          </div>
           <input type="file" id="inputAddStudioPhoto" accept="image/*" class="hidden" onchange="handleAddStudioPhoto(this)">
+          <input type="file" id="inputAddStudioCameraPhoto" accept="image/*" capture="environment" class="hidden" onchange="handleAddStudioPhoto(this)">
         </div>
         <div id="studioPhotoPool" class="flex flex-wrap items-center gap-2 pt-1"></div>
         <p class="text-[10px] text-gray-500">💡 একাধিক ব্যক্তির ছবি বা একই ছবির ভিন্ন ফ্রেম এখানে যোগ করে নিচের প্রতিটি সারিতে আলাদাভাবে বসাতে পারবেন।</p>
@@ -657,11 +690,20 @@
           <p class="text-xs text-gray-500 mt-0.5">যেকোনো ফাইল (Word, Excel, ZIP, ছবি, PDF...) সরাসরি দোকানদারের কম্পিউটারে পাঠান। প্রিন্ট না করেও পাঠানো যায়।</p>
         </div>
 
-        <div id="trDropzone" class="border-2 border-dashed border-gray-300 hover:border-pink-500 rounded-xl p-6 text-center cursor-pointer transition bg-gray-50">
+        <div id="trDropzone" class="border-2 border-dashed border-gray-300 hover:border-pink-500 rounded-xl p-5 text-center cursor-pointer transition bg-gray-50">
           <input type="file" id="trFileInput" class="hidden">
+          <input type="file" id="trCameraInput" accept="image/*" capture="environment" class="hidden">
           <div class="text-3xl mb-1">📁</div>
           <p class="font-bold text-gray-700 text-sm" id="trFileLabel">ফাইল বাছাই করতে ক্লিক করুন</p>
-          <p class="text-xs text-gray-400 mt-1">সর্বোচ্চ ৫০ MB • ২৪ ঘণ্টা পর স্বয়ংক্রিয়ভাবে মুছে যাবে</p>
+          <p class="text-xs text-gray-400 mt-0.5">সর্বোচ্চ ৫০ MB • ২৪ ঘণ্টা পর স্বয়ংক্রিয়ভাবে মুছে যাবে</p>
+          <div class="mt-3 flex items-center justify-center gap-2">
+            <button type="button" onclick="event.stopPropagation(); document.getElementById('trFileInput').click();" class="px-3.5 py-1.5 bg-white border border-gray-300 hover:border-pink-400 hover:text-pink-600 rounded-xl text-xs font-bold text-gray-700 shadow-xs transition flex items-center gap-1.5">
+              <span>📁</span> <span>ফাইল বা গ্যালারি</span>
+            </button>
+            <button type="button" onclick="event.stopPropagation(); document.getElementById('trCameraInput').click();" class="px-3.5 py-1.5 bg-pink-50 border border-pink-300 hover:bg-pink-100 text-pink-700 rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5">
+              <span>📷</span> <span>ক্যামেরা দিয়ে ছবি তুলুন</span>
+            </button>
+          </div>
         </div>
 
         <input type="text" id="trNameInput" maxlength="60" placeholder="আপনার নাম (ঐচ্ছিক)" class="w-full px-3 py-2 border rounded-lg text-sm outline-none">

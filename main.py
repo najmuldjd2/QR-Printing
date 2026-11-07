@@ -2721,7 +2721,10 @@ def perspective_crop_preview_endpoint(payload: dict = Body(...)):
 @app.post("/api/order/create")
 async def customer_create_order(request: Request):
     data = await request.json()
-    shop = db.get_shop_by_id(int(data.get("shop_id", 0) or 0))
+    shop_id = int(data.get("shop_id", 0) or 0)
+    shop = db.get_shop_by_id(shop_id) if shop_id else None
+    if not shop:
+        shop = get_current_shop(request)
     if not shop:
         raise HTTPException(status_code=404, detail="Shop not found")
 
