@@ -110,9 +110,12 @@ def sanitize_params(raw: Dict) -> Dict:
 
 
 # ── image operations ────────────────────────────────────────────────────────
-def load_working(path: str, max_side: int) -> Image.Image:
-    with Image.open(path) as im:
-        im = ImageOps.exif_transpose(im).convert("RGB")
+def load_working(path: Union[str, Image.Image], max_side: int) -> Image.Image:
+    if isinstance(path, Image.Image):
+        im = path.copy().convert("RGB")
+    else:
+        with Image.open(path) as raw:
+            im = ImageOps.exif_transpose(raw).convert("RGB")
     if max(im.size) > max_side:
         im.thumbnail((max_side, max_side), Image.Resampling.LANCZOS)
     return im
@@ -188,19 +191,21 @@ def crop_frame(img: Image.Image, w_px: int, h_px: int, zoom: float, ox: float, o
 
 
 # ── layout (shelf packing in rows) ──────────────────────────────────────────
-def pack(items: List[Tuple[int, float, float]], page_w: float, page_h: float, margin: float, gap: float):
+def pack_single_page(items: List[Tuple[int, float, float]], page_w: float, page_h: float, margin: float, gap: float):
     """
-    items: [(item_index, w_mm, h_mm)] — tallest first, laid out left→right in rows,
-    every row centred. Returns (placements, unplaced) where placements = [(item_index, x, y, w, h)].
+    Packs as many items as possible on a single page.
+    items: [(item_index, w_mm, h_mm)] — tallest first.
+    Returns (placements, unplaced_items).
     """
     avail_w = page_w - 2 * margin
     bottom = page_h - margin
     rows: List[Dict] = []
-    unplaced = []
+    unplaced_items: List[Tuple[int, float, float]] = []
 
-    for idx, w, h in sorted(items, key=lambda t: -t[2]):
+    for item in sorted(items, key=lambda t: -t[2]):
+        idx, w, h = item
         if w > avail_w or h > bottom - margin:
-            unplaced.append(idx)
+            unplaced_items.append(item)
             continue
         row = rows[-1] if rows else None
         if row and row["w"] + gap + w <= avail_w and h <= row["h"] + 1e-6:
@@ -211,7 +216,7 @@ def pack(items: List[Tuple[int, float, float]], page_w: float, page_h: float, ma
         if y + h <= bottom + 1e-6:
             rows.append({"y": y, "h": h, "w": w, "items": [(idx, w, h)]})
         else:
-            unplaced.append(idx)
+            unplaced_items.append(item)
 
     placements = []
     for row in rows:
@@ -219,38 +224,75 @@ def pack(items: List[Tuple[int, float, float]], page_w: float, page_h: float, ma
         for idx, w, h in row["items"]:
             placements.append((idx, x, row["y"], w, h))
             x += w + gap
-    return placements, unplaced
+    return placements, unplaced_items
 
 
-def render_sheet(
+def pack(items: List[Tuple[int, float, float]], page_w: float, page_h: float, margin: float, gap: float):
+    """
+    Backwards-compatible single-page pack.
+    Returns (placements, unplaced_indices).
+    """
+    placements, unplaced_items = pack_single_page(items, page_w, page_h, margin, gap)
+    return placements, [it[0] for it in unplaced_items]
+
+
+def pack_all_pages(items: List[Tuple[int, float, float]], page_w: float, page_h: float, margin: float, gap: float, max_pages: int = 30) -> List[List[Tuple[int, float, float, float, float]]]:
+    """
+    Packs all items across as many pages as necessary.
+    Returns a list of placement lists, one per page: [ [placements_page_1], [placements_page_2], ... ]
+    """
+    pages_placements = []
+    remaining = list(items)
+    while remaining and len(pages_placements) < max_pages:
+        placements, unplaced_items = pack_single_page(remaining, page_w, page_h, margin, gap)
+        if not placements:
+            # Remaining items cannot fit on the paper dimensions at all
+            break
+        pages_placements.append(placements)
+        if len(unplaced_items) == len(remaining):
+            # No progress made
+            break
+        remaining = unplaced_items
+    return pages_placements
+
+
+def render_sheets(
     src_path: str,
     params: Dict,
     dpi: int = 300,
     photos_map: Dict[str, str] = None,
     photos_list: List[str] = None
-) -> Tuple[Image.Image, Dict]:
+) -> Tuple[List[Image.Image], Dict]:
     """
-    Returns (sheet image, info) where info tells how many photos of each size fit.
-    Supports multi-photo layouts and independent per-row zoom & crop.
+    Renders all required sheet pages so that NO photo size or copy is dropped.
+    Returns (list_of_sheet_images, info).
     """
-    p = sanitize_params(params) if "paper" not in params or "fill" not in params else params
+    p = sanitize_params(params)
     page_w, page_h, margin, gap = PAPERS[p["paper"]]
     mm = lambda v: int(round(v / 25.4 * dpi))
 
-    # Auto-fill entire sheet only if fill is explicitly True AND there is exactly 1 photo size
     is_autofill = bool(p.get("fill")) and len(p.get("items", [])) == 1
     items = p["items"][:1] if is_autofill else p["items"]
     expanded = []
     for i, it in enumerate(items):
         n = 400 if is_autofill else it.get("count", 1)
         expanded += [(i, it["w"], it["h"])] * n
-    placements, _ = pack(expanded, page_w, page_h, margin, gap)
 
-    # 4x6 photo paper: try the page both ways and keep the one that holds more photos
-    if p["paper"] == "4x6":
-        alt, _ = pack(expanded, page_h, page_w, margin, gap)
-        if len(alt) >= len(placements):
-            placements, page_w, page_h = alt, page_h, page_w
+    if is_autofill:
+        pl, _ = pack_single_page(expanded, page_w, page_h, margin, gap)
+        pages_placements = [pl] if pl else []
+    else:
+        pages_placements = pack_all_pages(expanded, page_w, page_h, margin, gap)
+
+    # 4x6 photo paper: try both orientations if single page
+    if p["paper"] == "4x6" and len(pages_placements) <= 1:
+        alt_pages = pack_all_pages(expanded, page_h, page_w, margin, gap)
+        if alt_pages:
+            tot_alt = sum(len(pl) for pl in alt_pages)
+            tot_cur = sum(len(pl) for pl in pages_placements)
+            if tot_alt >= tot_cur:
+                pages_placements = alt_pages
+                page_w, page_h = page_h, page_w
 
     import image_fx
     max_side = max(700, int(dpi * 8))
@@ -268,8 +310,9 @@ def render_sheet(
         elif photos_list and 0 <= pidx < len(photos_list) and os.path.isfile(photos_list[pidx]):
             target_path = photos_list[pidx]
 
-        if target_path in processed_photos:
-            return processed_photos[target_path]
+        cache_key = id(target_path) if isinstance(target_path, Image.Image) else str(target_path)
+        if cache_key in processed_photos:
+            return processed_photos[cache_key]
 
         im = load_working(target_path, max_side)
 
@@ -294,51 +337,97 @@ def render_sheet(
 
         # 4. Color, Brightness & Contrast adjustment (sheet-level default)
         im = adjust(im, p["brightness"], p["contrast"], p["bw"])
-        processed_photos[target_path] = im
+        processed_photos[cache_key] = im
         return im
 
-    sheet = Image.new("RGB", (mm(page_w), mm(page_h)), "white")
-    draw = ImageDraw.Draw(sheet)
     # Cache key: (item_idx, w_px, h_px) so different items with same size retain independent photos/crops!
     cache: Dict[Tuple[int, int, int], Image.Image] = {}
     line = max(1, dpi // 150)
+    sheets: List[Image.Image] = []
 
-    for idx, x, y, w, h in placements:
-        it_cfg = items[idx]
-        w_px, h_px = mm(w), mm(h)
-        cache_key = (idx, w_px, h_px)
+    if not pages_placements:
+        empty_sheet = Image.new("RGB", (mm(page_w), mm(page_h)), "white")
+        sheets.append(empty_sheet)
+    else:
+        for page_placements in pages_placements:
+            sheet = Image.new("RGB", (mm(page_w), mm(page_h)), "white")
+            draw = ImageDraw.Draw(sheet)
 
-        if cache_key not in cache:
-            base_photo = get_base_photo_for_item(it_cfg)
-            item_zoom = it_cfg.get("zoom", p["zoom"])
-            item_ox = it_cfg.get("ox", p["ox"])
-            item_oy = it_cfg.get("oy", p["oy"])
+            for idx, x, y, w, h in page_placements:
+                it_cfg = items[idx]
+                w_px, h_px = mm(w), mm(h)
+                cache_key = (idx, w_px, h_px)
 
-            cropped = crop_frame(base_photo, w_px, h_px, item_zoom, item_ox, item_oy)
+                if cache_key not in cache:
+                    base_photo = get_base_photo_for_item(it_cfg)
+                    item_zoom = it_cfg.get("zoom", p["zoom"])
+                    item_ox = it_cfg.get("ox", p["ox"])
+                    item_oy = it_cfg.get("oy", p["oy"])
 
-            # Check if this item has row-level B&W override
-            if it_cfg.get("bw") is True and not p["bw"]:
-                cropped = ImageOps.grayscale(cropped).convert("RGB")
+                    cropped = crop_frame(base_photo, w_px, h_px, item_zoom, item_ox, item_oy)
 
-            cache[cache_key] = cropped
+                    # Check if this item has row-level B&W override
+                    if it_cfg.get("bw") is True and not p["bw"]:
+                        cropped = ImageOps.grayscale(cropped).convert("RGB")
 
-        px, py = mm(x), mm(y)
-        sheet.paste(cache[cache_key], (px, py))
-        if p["border"]:
-            draw.rectangle([px, py, px + w_px - 1, py + h_px - 1], outline="#9ca3af", width=line)
+                    cache[cache_key] = cropped
+
+                px, py = mm(x), mm(y)
+                sheet.paste(cache[cache_key], (px, py))
+                if p["border"]:
+                    draw.rectangle([px, py, px + w_px - 1, py + h_px - 1], outline="#9ca3af", width=line)
+
+            sheets.append(sheet)
 
     placed = [0] * len(items)
-    for idx, *_ in placements:
-        placed[idx] += 1
+    for page_placements in pages_placements:
+        for idx, *_ in page_placements:
+            placed[idx] += 1
+
     info = {
         "placed": placed,
         "requested": [None if p["fill"] else it["count"] for it in items],
-        "total": len(placements),
+        "total": sum(placed),
+        "total_pages": len(sheets),
         "orientation": "landscape" if page_w > page_h else "portrait",
     }
+    return sheets, info
+
+
+def render_sheet(
+    src_path: str,
+    params: Dict,
+    dpi: int = 300,
+    photos_map: Dict[str, str] = None,
+    photos_list: List[str] = None,
+    page: int = 1
+) -> Tuple[Image.Image, Dict]:
+    """
+    Returns (sheet image for specified page, info).
+    """
+    sheets, info = render_sheets(src_path, params, dpi=dpi, photos_map=photos_map, photos_list=photos_list)
+    p_idx = max(0, min(len(sheets) - 1, int(page or 1) - 1))
+    sheet = sheets[p_idx] if sheets else Image.new("RGB", (100, 100), "white")
+    info["current_page"] = p_idx + 1
+    info["total_pages"] = len(sheets)
     return sheet, info
 
 
-def save_sheet_pdf(sheet: Image.Image, out_path: str, dpi: int = 300) -> str:
-    sheet.save(out_path, "PDF", resolution=float(dpi))
+def save_sheet_pdf(sheet_or_sheets, out_path: str, dpi: int = 300) -> str:
+    """
+    Saves a single sheet Image or list of sheet Images as a single-page or multi-page PDF.
+    """
+    if isinstance(sheet_or_sheets, (list, tuple)):
+        sheets = list(sheet_or_sheets)
+    else:
+        sheets = [sheet_or_sheets]
+    if not sheets:
+        return out_path
+    if len(sheets) == 1:
+        sheets[0].save(out_path, "PDF", resolution=float(dpi))
+    else:
+        sheets[0].save(out_path, "PDF", resolution=float(dpi), save_all=True, append_images=sheets[1:])
     return out_path
+
+
+save_sheets_pdf = save_sheet_pdf

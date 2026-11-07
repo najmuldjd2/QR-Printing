@@ -927,8 +927,7 @@ async def edit_order_details(order_id: str, request: Request):
                 if storage.is_r2_configured() and os.path.isfile(orig_path):
                     await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
         elif extra.get("is_studio") or order.get("paper_size") == "PHOTO" or "studio_" in orig_path:
-            src_name = extra.get("source_photo") or ""
-            src_path = os.path.join(UPLOAD_DIR, src_name) if src_name else None
+            src_path = resolve_studio_source_path(order, extra)
             if src_path and os.path.isfile(src_path):
                 sp = studio.sanitize_params(extra.get("studio"))
                 sp["bw"] = (new_color == "bw")
@@ -936,8 +935,10 @@ async def edit_order_details(order_id: str, request: Request):
                 extra["studio"] = sp
                 updates["extra_data"] = json.dumps(extra)
                 p_map = {order_id: src_path}
-                sheet, _info = studio.render_sheet(src_path, sp, dpi=300, photos_map=p_map)
-                studio.save_sheet_pdf(sheet, orig_path, 300)
+                sheets, _info = studio.render_sheets(src_path, sp, dpi=300, photos_map=p_map)
+                page_count = max(1, len(sheets))
+                studio.save_sheet_pdf(sheets, orig_path, 300)
+                updates["page_count"] = page_count
                 if storage.is_r2_configured() and os.path.isfile(orig_path):
                     await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
 
@@ -1233,8 +1234,10 @@ async def admin_save_order_crop(order_id: str, request: Request):
                 await asyncio.to_thread(storage.upload_file_to_r2, src_path)
         sp = studio.sanitize_params(extra.get("studio"))
         p_map = {order_id: (src_path or orig_path)}
-        sheet, _info = studio.render_sheet((src_path or orig_path), sp, dpi=300, photos_map=p_map)
-        studio.save_sheet_pdf(sheet, orig_path, 300)
+        sheets, _info = studio.render_sheets((src_path or orig_path), sp, dpi=300, photos_map=p_map)
+        page_count = max(1, len(sheets))
+        studio.save_sheet_pdf(sheets, orig_path, 300)
+        db.update_order_details(order_id, {"page_count": page_count})
         if storage.is_r2_configured() and os.path.isfile(orig_path):
             await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
     elif order.get("file_type") == "pdf" and utils.get_ext(orig_path) == "pdf":
@@ -1315,17 +1318,20 @@ async def admin_rotate_order_file(order_id: str, request: Request):
             if storage.is_r2_configured() and os.path.isfile(orig_path):
                 await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
     elif extra.get("is_studio") or order.get("paper_size") == "PHOTO" or "studio_" in orig_path:
-        src_name = extra.get("source_photo") or ""
-        src_path = os.path.join(UPLOAD_DIR, src_name) if src_name else None
+        src_path = resolve_studio_source_path(order, extra)
         if src_path and os.path.isfile(src_path):
             with Image.open(src_path) as im:
                 im = ImageOps.exif_transpose(im)
                 rot = im.rotate(-degrees, expand=True)
                 rot.save(src_path, "JPEG", quality=95)
+            if storage.is_r2_configured():
+                await asyncio.to_thread(storage.upload_file_to_r2, src_path)
             sp = studio.sanitize_params(extra.get("studio"))
             p_map = {order_id: src_path}
-            sheet, _info = studio.render_sheet(src_path, sp, dpi=300, photos_map=p_map)
-            studio.save_sheet_pdf(sheet, orig_path, 300)
+            sheets, _info = studio.render_sheets(src_path, sp, dpi=300, photos_map=p_map)
+            page_count = max(1, len(sheets))
+            studio.save_sheet_pdf(sheets, orig_path, 300)
+            db.update_order_details(order_id, {"page_count": page_count})
             if storage.is_r2_configured() and os.path.isfile(orig_path):
                 await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
     elif order.get("file_type") == "pdf" and utils.get_ext(orig_path) == "pdf":
@@ -1435,8 +1441,10 @@ async def admin_camscan_order_file(order_id: str, request: Request):
                 await asyncio.to_thread(storage.upload_file_to_r2, src_path)
             sp = studio.sanitize_params(extra.get("studio"))
             p_map = {order_id: src_path}
-            sheet, _info = studio.render_sheet(src_path, sp, dpi=300, photos_map=p_map)
-            studio.save_sheet_pdf(sheet, orig_path, 300)
+            sheets, _info = studio.render_sheets(src_path, sp, dpi=300, photos_map=p_map)
+            page_count = max(1, len(sheets))
+            studio.save_sheet_pdf(sheets, orig_path, 300)
+            db.update_order_details(order_id, {"page_count": page_count})
             if storage.is_r2_configured() and os.path.isfile(orig_path):
                 await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
     elif order.get("file_type") == "pdf" and utils.get_ext(orig_path) == "pdf":
@@ -1544,8 +1552,10 @@ async def admin_revert_order_to_original(order_id: str, request: Request):
             shutil.copy2(p_photo, src_path)
             sp = studio.sanitize_params(extra.get("studio"))
             p_map = {order_id: src_path}
-            sheet, _info = studio.render_sheet(src_path, sp, dpi=300, photos_map=p_map)
-            studio.save_sheet_pdf(sheet, orig_path, 300)
+            sheets, _info = studio.render_sheets(src_path, sp, dpi=300, photos_map=p_map)
+            page_count = max(1, len(sheets))
+            studio.save_sheet_pdf(sheets, orig_path, 300)
+            db.update_order_details(order_id, {"page_count": page_count})
             if storage.is_r2_configured() and os.path.isfile(orig_path):
                 await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
         else:
@@ -1652,8 +1662,9 @@ async def admin_update_order_studio(order_id: str, request: Request):
         src_path = orig_path
 
     p_map = {order_id: src_path}
-    sheet, _info = studio.render_sheet(src_path, sp, dpi=300, photos_map=p_map)
-    studio.save_sheet_pdf(sheet, orig_path, 300)
+    sheets, _info = studio.render_sheets(src_path, sp, dpi=300, photos_map=p_map)
+    page_count = max(1, len(sheets))
+    studio.save_sheet_pdf(sheets, orig_path, 300)
 
     rate_passport = float(shop.get("rate_passport") or 5.0)
     rate_stamp = float(shop.get("rate_stamp") or 2.0)
@@ -1680,6 +1691,7 @@ async def admin_update_order_studio(order_id: str, request: Request):
     db.update_order_details(order_id, {
         "color_mode": "bw" if sp["bw"] else "color",
         "paper_size": "4x6" if sp["paper"] == "4x6" else ("PHOTO" if order.get("paper_size") == "PHOTO" else "A4"),
+        "page_count": page_count,
         "total_price": round(total_price, 2),
         "extra_data": json.dumps(extra)
     })
@@ -1687,7 +1699,7 @@ async def admin_update_order_studio(order_id: str, request: Request):
         await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
 
     await manager.notify_admin(shop["id"], {"event": "ORDER_UPDATED", "order_id": order_id})
-    return {"success": True, "total_price": round(total_price, 2), "studio": sp}
+    return {"success": True, "page_count": page_count, "total_pages": page_count, "total_price": round(total_price, 2), "studio": sp}
 
 @app.get("/admin/order/{order_id}/file")
 async def admin_download_order_file(order_id: str, request: Request, inline: int = 0, json_url: int = 0, local: int = 0):
@@ -2257,7 +2269,14 @@ def studio_preview(payload: dict = Body(...)):
         except Exception:
             pass
 
-    sheet, info = studio.render_sheet(src, params, dpi=100, photos_map=photos_map)
+    page = max(1, int(payload.get("page", 1) or 1))
+    sheets, info = studio.render_sheets(src, params, dpi=100, photos_map=photos_map)
+    total_pages = max(1, len(sheets))
+    page_idx = max(0, min(total_pages - 1, page - 1))
+    sheet = sheets[page_idx]
+    info["current_page"] = page_idx + 1
+    info["total_pages"] = total_pages
+
     buf = io.BytesIO()
     sheet.save(buf, "JPEG", quality=85)
     return Response(content=buf.getvalue(), media_type="image/jpeg",
@@ -2800,11 +2819,12 @@ async def customer_create_order(request: Request):
                 pass
 
         def _build():
-            sheet, _info = studio.render_sheet(src, sp, dpi=300, photos_map=photos_map)
-            studio.save_sheet_pdf(sheet, file_path, 300)
+            sheets, _info = studio.render_sheets(src, sp, dpi=300, photos_map=photos_map)
+            studio.save_sheet_pdf(sheets, file_path, 300)
+            return max(1, len(sheets))
 
-        await asyncio.to_thread(_build)
-        file_type, page_count = "pdf", 1
+        page_count = await asyncio.to_thread(_build)
+        file_type = "pdf"
         color_mode = "color"
         duplex = "single"
         original_filename = f"Photo_Sheet_{sp['paper']}.pdf"

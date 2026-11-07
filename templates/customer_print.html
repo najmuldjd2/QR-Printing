@@ -422,6 +422,12 @@
           <span id="studioInfo" class="font-bold text-pink-700"></span>
         </div>
         <img id="studioPreviewImg" src="" alt="preview" class="w-full max-h-[460px] object-contain rounded-lg bg-white shadow border">
+        <!-- Multi-page navigation for Customer Studio -->
+        <div id="customerStudioPageNav" class="hidden w-full flex items-center justify-between bg-white px-3 py-1.5 rounded-lg border border-pink-200 shadow-sm text-xs mt-2">
+          <button type="button" onclick="stepCustomerStudioPage(-1)" class="px-2.5 py-1 bg-gray-100 hover:bg-pink-100 hover:text-pink-700 rounded-lg font-bold transition">◀ আগের পাতা</button>
+          <span id="customerStudioPageIndicator" class="font-bold text-pink-700">পাতা ১ / ১</span>
+          <button type="button" onclick="stepCustomerStudioPage(1)" class="px-2.5 py-1 bg-gray-100 hover:bg-pink-100 hover:text-pink-700 rounded-lg font-bold transition">পরের পাতা ▶</button>
+        </div>
       </div>
 
       <!-- Multi-photo Pool / Gallery for Photo Studio -->

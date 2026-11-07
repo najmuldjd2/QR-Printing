@@ -910,6 +910,12 @@
                 <div id="adminStudioSheetFrame" class="w-[240px] sm:w-[280px] aspect-[210/297] bg-white rounded shadow-lg border-2 border-pink-300 p-2 flex items-center justify-center overflow-hidden">
                   <img id="adminStudioPreviewImg" src="" alt="Studio Sheet Preview" class="max-w-full max-h-full object-contain">
                 </div>
+                <!-- Multi-page navigation for Admin Studio Modal -->
+                <div id="adminStudioPageNav" class="hidden w-full max-w-[280px] flex items-center justify-between bg-white px-3 py-1.5 rounded-xl border border-pink-200 shadow-sm text-xs mt-2">
+                  <button type="button" onclick="stepAdminStudioPage(-1)" class="px-2.5 py-1 bg-gray-100 hover:bg-pink-100 hover:text-pink-700 rounded-lg font-bold transition">◀ আগের পাতা</button>
+                  <span id="adminStudioPageIndicator" class="font-bold text-pink-700">পাতা ১ / ১</span>
+                  <button type="button" onclick="stepAdminStudioPage(1)" class="px-2.5 py-1 bg-gray-100 hover:bg-pink-100 hover:text-pink-700 rounded-lg font-bold transition">পরের পাতা ▶</button>
+                </div>
                 <div id="adminStudioEmptyNote" class="text-xs text-gray-400 font-semibold text-center mt-2">
                   বামপাশে একটি ছবি আপলোড করুন, এখানে সাথে সাথে শিট দেখা যাবে।
                 </div>
@@ -2271,8 +2277,20 @@
     let adminStudioFileId = null;
     let adminStudioBlobUrl = null;
     let adminStudioTimer = null;
+    let adminStudioCurrentPage = 1;
+    let adminStudioTotalPages = 1;
+
+    function stepAdminStudioPage(delta) {
+      const nextP = Math.max(1, Math.min(adminStudioTotalPages, adminStudioCurrentPage + delta));
+      if (nextP !== adminStudioCurrentPage) {
+        adminStudioCurrentPage = nextP;
+        refreshAdminStudioPreview();
+      }
+    }
 
     function openAdminStudioModal(tab = 'studio') {
+      adminStudioCurrentPage = 1;
+      adminStudioTotalPages = 1;
       document.getElementById('adminStudioModal').classList.remove('hidden');
       switchAdminStudioTab(tab);
       if (!adminStudioItems || adminStudioItems.length === 0) {
@@ -2503,6 +2521,7 @@
 
       const payload = {
         file_id: adminStudioFileId,
+        page: adminStudioCurrentPage,
         params: {
           paper: paper,
           bw: color === 'bw',
@@ -2527,6 +2546,19 @@
           body: JSON.stringify(payload)
         });
         if (res.ok) {
+          const rawInfo = res.headers.get('X-Studio-Info');
+          let info = {};
+          try { info = JSON.parse(rawInfo || '{}'); } catch(e) {}
+          adminStudioTotalPages = Math.max(1, parseInt(info.total_pages || 1, 10));
+          if (adminStudioCurrentPage > adminStudioTotalPages) {
+            adminStudioCurrentPage = adminStudioTotalPages;
+          }
+          const pageNav = document.getElementById('adminStudioPageNav');
+          const pageInd = document.getElementById('adminStudioPageIndicator');
+          if (pageNav && pageInd) {
+            pageNav.classList.toggle('hidden', adminStudioTotalPages <= 1);
+            pageInd.innerText = `পাতা ${adminStudioCurrentPage} / ${adminStudioTotalPages}`;
+          }
           const blob = await res.blob();
           const imgUrl = URL.createObjectURL(blob);
           const prevImg = document.getElementById('adminStudioPreviewImg');
@@ -3049,6 +3081,10 @@
             currentEditingOrder.total_price = data.total_price;
             currentEditingOrder.color_mode = color;
             currentEditingOrder.paper_size = paper;
+            if (data.page_count) {
+              currentEditingOrder.page_count = data.page_count;
+              if (editPreviewPage > data.page_count) editPreviewPage = data.page_count;
+            }
           }
           if (data.total_price) {
             document.getElementById('editTotalPrice').value = data.total_price;

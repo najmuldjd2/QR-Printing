@@ -1193,6 +1193,17 @@
   }
 
   let studioReq = 0;
+  let customerStudioCurrentPage = 1;
+  let customerStudioTotalPages = 1;
+
+  window.stepCustomerStudioPage = function(delta) {
+    const nextP = Math.max(1, Math.min(customerStudioTotalPages, customerStudioCurrentPage + delta));
+    if (nextP !== customerStudioCurrentPage) {
+      customerStudioCurrentPage = nextP;
+      refreshStudio(false);
+    }
+  };
+
   async function refreshStudio(force) {
     if (!uploadedFile || currentMode !== 'studio') return;
     const my = ++studioReq;
@@ -1203,6 +1214,7 @@
         body: JSON.stringify({
           file_id: (studioPhotos[0] || {}).file_id || uploadedFile.file_id,
           photos: studioPhotos.map(p => p.file_id),
+          page: customerStudioCurrentPage,
           params: studioParams()
         })
       });
@@ -1213,9 +1225,22 @@
       if (studioBlobUrl) URL.revokeObjectURL(studioBlobUrl);
       studioBlobUrl = URL.createObjectURL(blob);
       $('studioPreviewImg').src = studioBlobUrl;
+
+      customerStudioTotalPages = Math.max(1, parseInt(info.total_pages || 1, 10));
+      if (customerStudioCurrentPage > customerStudioTotalPages) {
+        customerStudioCurrentPage = customerStudioTotalPages;
+      }
+      const custPageNav = $('customerStudioPageNav');
+      const custPageInd = $('customerStudioPageIndicator');
+      if (custPageNav && custPageInd) {
+        custPageNav.classList.toggle('hidden', customerStudioTotalPages <= 1);
+        custPageInd.innerText = `পাতা ${bn(customerStudioCurrentPage)} / ${bn(customerStudioTotalPages)}`;
+      }
+
       const placed = (info.placed || []).map(bn).join(' + ');
       const miss = (info.requested || []).some((r, i) => r !== null && info.placed[i] < r);
-      $('studioInfo').innerText = `মোট ${bn(info.total || 0)}টি ছবি বসেছে${placed ? ' (' + placed + ')' : ''}${miss ? ' ⚠️ সব ধরেনি' : ''}`;
+      const multiPageNote = customerStudioTotalPages > 1 ? ` (${bn(customerStudioTotalPages)} পাতা)` : '';
+      $('studioInfo').innerText = `মোট ${bn(info.total || 0)}টি ছবি বসেছে${multiPageNote}${placed && customerStudioTotalPages <= 1 ? ' (' + placed + ')' : ''}${miss ? ' ⚠️ সব ধরেনি' : ''}`;
       $('studioInfo').className = 'font-bold ' + (miss ? 'text-red-600' : 'text-pink-700');
     } catch (e) {
       $('studioInfo').innerText = '⚠️ প্রিভিউ তৈরি হয়নি';
