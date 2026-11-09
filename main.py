@@ -1333,6 +1333,9 @@ async def admin_save_order_crop(order_id: str, request: Request):
             dest = back if side == "back" else front
             im.save(dest, "JPEG", quality=95)
             fit_mode = extra.get("fit", "cover")
+            # Reset rotation for the newly cropped upright card image
+            extra["rot_" + side] = 0
+            db.update_order_details(order_id, {"extra_data": json.dumps(extra)})
             rot_front = int(extra.get("rot_front", 0))
             rot_back = int(extra.get("rot_back", 0))
             color_mode = order.get("color_mode", "color")
@@ -1344,8 +1347,11 @@ async def admin_save_order_crop(order_id: str, request: Request):
                 rot_back=rot_back,
                 orientation=order.get("orientation", "portrait")
             )
-            if storage.is_r2_configured() and os.path.isfile(orig_path):
-                await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
+            if storage.is_r2_configured():
+                if os.path.isfile(dest):
+                    await asyncio.to_thread(storage.upload_file_to_r2, dest)
+                if os.path.isfile(orig_path):
+                    await asyncio.to_thread(storage.upload_file_to_r2, orig_path)
     elif extra.get("is_studio") or order.get("paper_size") == "PHOTO" or "studio_" in orig_path:
         src_path = resolve_studio_source_path(order, extra)
         if src_path and os.path.isfile(src_path):

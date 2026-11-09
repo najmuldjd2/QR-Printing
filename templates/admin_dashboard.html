@@ -1094,64 +1094,85 @@
   <div id="adminOrderCropModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4 hidden">
     <div class="bg-white max-w-xl w-full rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-200 max-h-[96vh]">
       <div class="px-4 py-3 bg-gray-900 text-white flex items-center justify-between shrink-0">
-        <h3 class="font-bold text-sm flex items-center gap-2"><span>📐</span> <span>ছবি ক্রপ, সোজা ও স্ক্যান কালার ঠিক করুন (Smart Crop & CamScanner)</span></h3>
+        <h3 class="font-bold text-sm flex items-center gap-2"><span>📐</span> <span id="adminCropModalTitle">ছবি ক্রপ, সোজা ও স্ক্যান কালার ঠিক করুন (Smart Crop & CamScanner)</span></h3>
         <button type="button" onclick="closeAdminOrderCropModal()" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
       </div>
 
       <div class="p-3.5 space-y-3 text-xs overflow-y-auto">
-        <!-- Cropper Mode Switcher -->
-        <div class="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-xl">
-          <button type="button" id="btnAdminCropModeBox" onclick="setAdminCropMode('box')" class="py-1.5 rounded-lg font-bold bg-pink-600 text-white shadow-sm flex items-center justify-center gap-1">
-            <span>✂️</span> <span>সাধারণ ও কাস্টম ক্রপ</span>
-          </button>
-          <button type="button" id="btnAdminCropModeCorner" onclick="setAdminCropMode('corner')" class="py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-200 flex items-center justify-center gap-1">
-            <span>📐</span> <span>৪-কোণা স্মার্ট স্ক্যান</span>
-          </button>
-        </div>
-
-        <!-- Box Cropper Container -->
-        <div id="adminBoxCropSection" class="space-y-2">
-          <div class="relative bg-gray-950 rounded-xl overflow-hidden flex items-center justify-center h-[290px] max-h-[40vh]">
-            <img id="adminCropTargetImg" src="" class="max-h-full max-w-full block transition-all duration-150" alt="Crop Target">
+        <!-- VIEW 1: Editor View (Select Box or 4 Corners) -->
+        <div id="adminCropEditorView" class="space-y-3">
+          <!-- Cropper Mode Switcher -->
+          <div class="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-xl">
+            <button type="button" id="btnAdminCropModeBox" onclick="setAdminCropMode('box')" class="py-1.5 rounded-lg font-bold bg-pink-600 text-white shadow-sm flex items-center justify-center gap-1">
+              <span>✂️</span> <span>সাধারণ ও কাস্টম ক্রপ</span>
+            </button>
+            <button type="button" id="btnAdminCropModeCorner" onclick="setAdminCropMode('corner')" class="py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-200 flex items-center justify-center gap-1">
+              <span>📐</span> <span>৪-কোণা স্মার্ট স্ক্যান</span>
+            </button>
           </div>
+
+          <!-- Common Ratio Selector Bar (Available for both Box crop and 4-Corner Smart Scan) -->
           <div class="grid grid-cols-3 sm:grid-cols-6 gap-1 text-center">
             <button type="button" onclick="setAdminBoxCropRatio('free')" id="adminRatioFree" class="py-1 px-1.5 bg-pink-600 text-white font-bold rounded-lg shadow-xs">ফ্রি সাইজ</button>
             <button type="button" onclick="setAdminBoxCropRatio('nid')" id="adminRatioNid" class="py-1 px-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg">ID কার্ড</button>
+            <button type="button" onclick="setAdminBoxCropRatio('a4')" id="adminRatioA4" class="py-1 px-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg">A4 ডকুমেন্ট</button>
             <button type="button" onclick="setAdminBoxCropRatio('passport')" id="adminRatioPassport" class="py-1 px-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg">পাসপোর্ট</button>
-            <button type="button" onclick="setAdminBoxCropRatio('stamp')" id="adminRatioStamp" class="py-1 px-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg">স্ট্যাম্প</button>
             <button type="button" onclick="setAdminBoxCropRatio('square')" id="adminRatioSquare" class="py-1 px-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg">১:১ স্কয়ার</button>
             <button type="button" onclick="rotateAdminCropper(90)" class="py-1 px-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-lg flex items-center justify-center gap-0.5">↻ ৯০°</button>
           </div>
+
+          <!-- Box Cropper Container -->
+          <div id="adminBoxCropSection" class="space-y-2">
+            <div class="relative bg-gray-950 rounded-xl overflow-hidden flex items-center justify-center h-[280px] max-h-[38vh]">
+              <img id="adminCropTargetImg" src="" class="max-h-full max-w-full block transition-all duration-150" alt="Crop Target">
+            </div>
+          </div>
+
+          <!-- CamScanner 4-Corner Container -->
+          <div id="adminCornerCropSection" class="hidden space-y-2">
+            <div class="relative bg-gray-950 rounded-xl overflow-hidden flex items-center justify-center h-[280px] max-h-[38vh] select-none touch-none" id="adminSmartContainer">
+              <canvas id="adminSmartCanvas" class="block cursor-crosshair touch-none"></canvas>
+              <canvas id="adminSmartLoupeCanvas" width="130" height="130" class="absolute top-3 left-3 w-[110px] h-[110px] rounded-full border-2 border-white shadow-2xl z-20 pointer-events-none hidden bg-slate-900"></canvas>
+            </div>
+            <p class="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1 text-center font-medium">
+              💡 ছবির <b>৪টি সবুজ কোণা</b> বা <b>মাঝখানের পয়েন্ট</b> টেনে বাঁকা ডকুমেন্ট বা কার্ড সোজা করুন।
+            </p>
+          </div>
+
+          <!-- Custom Dimension Input with Live Size Badge (2 in x 6 in, 300x600 px etc) -->
+          <div class="p-2.5 bg-slate-100 rounded-xl border border-slate-200 space-y-1.5">
+            <div class="flex items-center justify-between gap-1">
+              <span class="font-bold text-slate-800 text-[11px] flex items-center gap-1">📐 যেকোনো কাস্টম মাপ দিন:</span>
+              <select id="adminCropCustomUnit" onchange="applyAdminCropCustomDim()" class="px-2 py-0.5 border border-slate-300 rounded text-[11px] bg-white font-bold text-slate-700">
+                <option value="inch">ইঞ্চি (inch)</option>
+                <option value="px">পিক্সেল (px @ 300 DPI)</option>
+                <option value="mm">মিমি (mm)</option>
+              </select>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <input type="number" id="adminCropCustomW" oninput="applyAdminCropCustomDim()" placeholder="W (যেমন 2)" class="w-1/2 px-2 py-1 border rounded text-xs font-bold text-center bg-white">
+              <span class="text-gray-400 font-bold">×</span>
+              <input type="number" id="adminCropCustomH" oninput="applyAdminCropCustomDim()" placeholder="H (যেমন 6)" class="w-1/2 px-2 py-1 border rounded text-xs font-bold text-center bg-white">
+              <button type="button" onclick="applyAdminCropCustomDim(true)" class="px-2.5 py-1 bg-pink-600 hover:bg-pink-700 text-white rounded font-bold text-[11px] shrink-0">প্রয়োগ</button>
+            </div>
+            <div id="adminCropCustomBadge" class="hidden text-[10px] text-slate-700 font-mono bg-white p-1 rounded border border-slate-200 text-center font-bold"></div>
+          </div>
         </div>
 
-        <!-- CamScanner 4-Corner Container -->
-        <div id="adminCornerCropSection" class="hidden space-y-2">
-          <div class="relative bg-gray-950 rounded-xl overflow-hidden flex items-center justify-center h-[290px] max-h-[40vh] select-none touch-none" id="adminSmartContainer">
-            <canvas id="adminSmartCanvas" class="block cursor-crosshair touch-none"></canvas>
-            <canvas id="adminSmartLoupeCanvas" width="130" height="130" class="absolute top-3 left-3 w-[110px] h-[110px] rounded-full border-2 border-white shadow-2xl z-20 pointer-events-none hidden bg-slate-900"></canvas>
+        <!-- VIEW 2: Straightened Live Rectangle Preview (আয়তক্ষেত্র আকারে সোজা প্রিভিউ) -->
+        <div id="adminCropResultView" class="hidden space-y-2.5">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-emerald-950 text-xs flex items-center gap-1.5">
+              <span>🖼️</span> <span>সোজা ও আয়তক্ষেত্র প্রিভিউ (Straightened Rectangle):</span>
+            </span>
+            <span class="text-[10px] font-bold bg-emerald-600 text-white px-2.5 py-0.5 rounded-full">✓ সোজা আয়তক্ষেত্র তৈরি</span>
           </div>
-          <p class="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1 text-center font-medium">
-            💡 ছবির <b>৪টি সবুজ কোণা</b> বা <b>মাঝখানের পয়েন্ট</b> টেনে বাঁকা ডকুমেন্ট বা কার্ড সোজা করুন। পুরো বক্স ধরেও সরানো যাবে।
+          <div class="relative bg-gray-950 rounded-xl overflow-hidden flex items-center justify-center h-[290px] max-h-[40vh] p-2 border border-gray-800">
+            <img id="adminCropResultPreviewImg" src="" alt="Straightened Live Result" class="max-h-full max-w-full object-contain rounded-lg shadow-lg bg-white mx-auto block">
+          </div>
+          <p class="text-[11px] text-gray-500 text-center font-medium">
+            নিচে কালার বা স্ক্যান ফিল্টার ঠিক করে <b>"✓ নিশ্চিত ও সংরক্ষণ করুন"</b> বাটনে চাপুন।
           </p>
-        </div>
-
-        <!-- Custom Dimension Input with Live Size Badge (2 in x 6 in, 300x600 px etc) -->
-        <div class="p-2.5 bg-slate-100 rounded-xl border border-slate-200 space-y-1.5">
-          <div class="flex items-center justify-between gap-1">
-            <span class="font-bold text-slate-800 text-[11px] flex items-center gap-1">📐 যেকোনো কাস্টম মাপ দিন:</span>
-            <select id="adminCropCustomUnit" onchange="applyAdminCropCustomDim()" class="px-2 py-0.5 border border-slate-300 rounded text-[11px] bg-white font-bold text-slate-700">
-              <option value="inch">ইঞ্চি (inch)</option>
-              <option value="px">পিক্সেল (px @ 300 DPI)</option>
-              <option value="mm">মিমি (mm)</option>
-            </select>
-          </div>
-          <div class="flex items-center gap-1.5">
-            <input type="number" id="adminCropCustomW" oninput="applyAdminCropCustomDim()" placeholder="W (যেমন 2)" class="w-1/2 px-2 py-1 border rounded text-xs font-bold text-center bg-white">
-            <span class="text-gray-400 font-bold">×</span>
-            <input type="number" id="adminCropCustomH" oninput="applyAdminCropCustomDim()" placeholder="H (যেমন 6)" class="w-1/2 px-2 py-1 border rounded text-xs font-bold text-center bg-white">
-            <button type="button" onclick="applyAdminCropCustomDim(true)" class="px-2.5 py-1 bg-pink-600 hover:bg-pink-700 text-white rounded font-bold text-[11px] shrink-0">প্রয়োগ</button>
-          </div>
-          <div id="adminCropCustomBadge" class="hidden text-[10px] text-slate-700 font-mono bg-white p-1 rounded border border-slate-200 text-center font-bold"></div>
         </div>
 
         <!-- CamScanner Quality & Color Correction (স্ক্যান এনহ্যান্স ও কালার ঠিক করুন) -->
@@ -1199,15 +1220,28 @@
         </div>
       </div>
 
-      <!-- Footer Buttons -->
-      <div class="p-3 bg-gray-50 border-t flex justify-between items-center gap-2 shrink-0">
+      <!-- Footer Buttons Step 1 (While selecting box or corners) -->
+      <div id="adminCropFooterStep1" class="p-3 bg-gray-50 border-t flex justify-between items-center gap-2 shrink-0">
         <button type="button" onclick="resetAdminCropColor()" class="px-3 py-1.5 text-gray-600 hover:text-gray-800 text-xs font-bold flex items-center gap-1 bg-white border border-gray-300 rounded-xl hover:bg-gray-100 transition shadow-xs">
           <span>↺</span> <span>কালার রিসেট</span>
         </button>
         <div class="flex items-center gap-2">
           <button type="button" onclick="closeAdminOrderCropModal()" class="px-4 py-2 border rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100 transition">বাতিল</button>
-          <button type="button" id="btnSaveAdminCrop" onclick="saveAdminOrderCrop()" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow flex items-center gap-1.5 transition">
-            <span>✓</span> <span>ক্রপ ও স্ক্যান কালার সংরক্ষণ</span>
+          <button type="button" id="btnPreviewAdminCrop" onclick="previewAdminCroppedImage()" class="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow flex items-center gap-1.5 transition">
+            <span>📐</span> <span>ক্রপ ও সোজা করুন (প্রিভিউ)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Footer Buttons Step 2 (When viewing straightened rectangle result) -->
+      <div id="adminCropFooterStep2" class="hidden p-3 bg-gray-50 border-t flex justify-between items-center gap-2 shrink-0">
+        <button type="button" onclick="backToAdminCropStep1()" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-xl text-xs font-bold flex items-center gap-1 transition">
+          <span>↺</span> <span>আবার কোণা পরিবর্তন করুন</span>
+        </button>
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="closeAdminOrderCropModal()" class="px-4 py-2 border rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100 transition">বাতিল</button>
+          <button type="button" id="btnSaveAdminCrop" onclick="saveAdminOrderCrop()" class="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-xl text-xs font-bold shadow-lg flex items-center gap-1.5 transition">
+            <span>✓</span> <span>নিশ্চিত ও সংরক্ষণ করুন</span>
           </button>
         </div>
       </div>
@@ -3006,14 +3040,14 @@
       adminActiveCropTarget = 'order_nid';
       adminCropNidSide = side;
       const imgUrl = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?side=${side}&t=${Date.now()}`;
-      setupAndOpenAdminCropModal(imgUrl, 'nid_' + side);
+      setupAndOpenAdminCropModal(imgUrl, 'order_nid');
     }
 
     function openOrderStudioCrop() {
       if (!currentEditingOrderId) return;
       adminActiveCropTarget = 'order_studio';
       const imgUrl = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?side=front&t=${Date.now()}`;
-      setupAndOpenAdminCropModal(imgUrl, 'studio');
+      setupAndOpenAdminCropModal(imgUrl, 'order_studio');
     }
 
     async function rotateCurrentOrderPage() {
@@ -3371,6 +3405,11 @@
       if (adminCropMode === 'corner') {
         drawAdminSmartCrop();
       }
+
+      const resView = document.getElementById('adminCropResultView');
+      if (resView && !resView.classList.contains('hidden')) {
+        updateAdminCropStep2Display();
+      }
     }
 
     function selectAdminCropFilter(fx) {
@@ -3718,30 +3757,36 @@
       document.getElementById('adminOrderCropModal').classList.remove('hidden');
       adminActiveCropTarget = target;
       resetAdminCropColor();
-      
-      const isCorner = target.startsWith('nid');
-      adminCropMode = isCorner ? 'corner' : 'box';
+      backToAdminCropStep1();
 
-      const bBox = document.getElementById('btnAdminCropModeBox');
-      const bCorner = document.getElementById('btnAdminCropModeCorner');
-      const secBox = document.getElementById('adminBoxCropSection');
-      const secCorner = document.getElementById('adminCornerCropSection');
-
-      if (adminCropMode === 'box') {
-        bBox.className = 'py-1.5 rounded-lg font-bold bg-pink-600 text-white shadow-sm flex items-center justify-center gap-1';
-        bCorner.className = 'py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-200 flex items-center justify-center gap-1';
-        secBox.classList.remove('hidden');
-        secCorner.classList.add('hidden');
-      } else {
-        bCorner.className = 'py-1.5 rounded-lg font-bold bg-emerald-600 text-white shadow-sm flex items-center justify-center gap-1';
-        bBox.className = 'py-1.5 rounded-lg font-bold text-gray-700 hover:bg-gray-200 flex items-center justify-center gap-1';
-        secCorner.classList.remove('hidden');
-        secBox.classList.add('hidden');
+      const titleEl = document.getElementById('adminCropModalTitle');
+      if (titleEl) {
+        if (target === 'order_nid') {
+          titleEl.innerText = `NID ${adminCropNidSide === 'front' ? 'সামনের পিঠ (Front)' : 'পেছনের পিঠ (Back)'} ক্রপ ও সোজা করুন`;
+        } else if (target === 'order') {
+          titleEl.innerText = `ডকুমেন্ট পাতা ক্রপ ও সোজা করুন (৪-কোণা স্মার্ট স্ক্যান)`;
+        } else if (target.startsWith('nid')) {
+          titleEl.innerText = `NID ${target.includes('back') ? 'পেছনের পিঠ' : 'সামনের পিঠ'} ক্রপ ও সোজা করুন`;
+        } else {
+          titleEl.innerText = `ছবি ক্রপ, সোজা ও স্ক্যান কালার ঠিক করুন`;
+        }
       }
 
-      if (target.startsWith('nid')) setAdminBoxCropRatio('nid');
-      else if (target === 'studio') setAdminBoxCropRatio('passport');
-      else setAdminBoxCropRatio('free');
+      const isCorner = target === 'order_nid' || target.startsWith('nid') || target === 'order';
+      adminCropMode = isCorner ? 'corner' : 'box';
+
+      if (target === 'order_nid' || target.startsWith('nid')) {
+        setAdminBoxCropRatio('nid');
+        adminCropActiveRatio = 'nid';
+      } else if (target === 'order_studio' || target === 'studio') {
+        setAdminBoxCropRatio('passport');
+        adminCropActiveRatio = 'passport';
+      } else {
+        setAdminBoxCropRatio('free');
+        adminCropActiveRatio = 'free';
+      }
+
+      setAdminCropMode(adminCropMode);
 
       const img = document.getElementById('adminCropTargetImg');
       img.crossOrigin = 'anonymous';
@@ -3766,6 +3811,8 @@
 
     function closeAdminOrderCropModal() {
       document.getElementById('adminOrderCropModal').classList.add('hidden');
+      backToAdminCropStep1();
+      adminPendingCropCanvas = null;
       const loupe = document.getElementById('adminSmartLoupeCanvas');
       if (loupe) loupe.classList.add('hidden');
       if (adminCropper) {
@@ -3819,7 +3866,7 @@
 
     function setAdminBoxCropRatio(ratio) {
       adminCropActiveRatio = ratio;
-      const ratios = ['free', 'nid', 'passport', 'stamp', 'square'];
+      const ratios = ['free', 'nid', 'a4', 'passport', 'stamp', 'square'];
       ratios.forEach(r => {
         const el = document.getElementById('adminRatio' + r.charAt(0).toUpperCase() + r.slice(1));
         if (el) {
@@ -3831,6 +3878,7 @@
 
       if (!adminCropper) return;
       if (ratio === 'nid') adminCropper.setAspectRatio(85.6 / 54);
+      else if (ratio === 'a4') adminCropper.setAspectRatio(210 / 297);
       else if (ratio === 'passport') adminCropper.setAspectRatio(35 / 45);
       else if (ratio === 'stamp') adminCropper.setAspectRatio(20 / 25);
       else if (ratio === 'square') adminCropper.setAspectRatio(1);
@@ -4226,14 +4274,25 @@
       let outW = Math.max(120, Math.round((wTop + wBot) * 0.5));
       let outH = Math.max(120, Math.round((hLeft + hRight) * 0.5));
 
-      const rMap = { nid: 85.6 / 54.0, passport: 35.0 / 45.0, stamp: 20.0 / 25.0, square: 1.0 };
-      const tr = rMap[ratioKey] || null;
+      const rMap = {
+        nid: 85.6 / 54.0,
+        a4: 210.0 / 297.0,
+        passport: 35.0 / 45.0,
+        stamp: 20.0 / 25.0,
+        square: 1.0
+      };
+      let tr = rMap[ratioKey] || null;
+      if (ratioKey === 'nid') {
+        tr = (outH > outW) ? (54.0 / 85.6) : (85.6 / 54.0);
+      } else if (ratioKey === 'a4') {
+        tr = (outW > outH) ? (297.0 / 210.0) : (210.0 / 297.0);
+      }
       if (tr) {
         if (outW >= outH * tr) outH = Math.max(120, Math.round(outW / tr));
         else outW = Math.max(120, Math.round(outH * tr));
       }
 
-      const maxDim = 1200;
+      const maxDim = 1600;
       if (Math.max(outW, outH) > maxDim) {
         const sc = maxDim / Math.max(outW, outH);
         outW = Math.max(80, Math.round(outW * sc));
@@ -4282,14 +4341,81 @@
       return dstCvs;
     }
 
-    async function saveAdminOrderCrop() {
-      const btn = document.getElementById('btnSaveAdminCrop');
-      btn.disabled = true;
-      btn.innerHTML = '<span>⏳</span> <span>সংরক্ষণ হচ্ছে...</span>';
+    let adminPendingCropCanvas = null;
+
+    function previewAdminCroppedImage() {
+      const btn = document.getElementById('btnPreviewAdminCrop');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span>⏳</span> <span>সোজা করা হচ্ছে...</span>';
+      }
 
       try {
         let resultCanvas = null;
         if (adminCropMode === 'box') {
+          if (!adminCropper) throw new Error('Cropper পাওয়া যায়নি');
+          resultCanvas = adminCropper.getCroppedCanvas({ maxWidth: 2000, maxHeight: 2000 });
+        } else {
+          resultCanvas = warpPerspectiveClientSide(adminCropImgElement, adminSmartPts, adminCropActiveRatio);
+        }
+        if (!resultCanvas) throw new Error('ক্রপ ক্যানভাস তৈরি করা যায়নি');
+
+        adminPendingCropCanvas = resultCanvas;
+        updateAdminCropStep2Display();
+
+        const editView = document.getElementById('adminCropEditorView');
+        const foot1 = document.getElementById('adminCropFooterStep1');
+        const resView = document.getElementById('adminCropResultView');
+        const foot2 = document.getElementById('adminCropFooterStep2');
+        if (editView) editView.classList.add('hidden');
+        if (foot1) foot1.classList.add('hidden');
+        if (resView) resView.classList.remove('hidden');
+        if (foot2) foot2.classList.remove('hidden');
+      } catch (e) {
+        alert('ত্রুটি: ' + e.message);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>📐</span> <span>ক্রপ ও সোজা করুন (প্রিভিউ)</span>';
+        }
+      }
+    }
+
+    function updateAdminCropStep2Display() {
+      if (!adminPendingCropCanvas) return;
+      let outCanvas = adminPendingCropCanvas;
+      if (adminCropFilter !== 'original' || adminCropBrightness !== 0 || adminCropContrast !== 0) {
+        outCanvas = applyClientCropFilterToCanvas(adminPendingCropCanvas, adminCropFilter, adminCropBrightness, adminCropContrast);
+      }
+      const previewImg = document.getElementById('adminCropResultPreviewImg');
+      if (previewImg) {
+        previewImg.src = outCanvas.toDataURL('image/jpeg', 0.95);
+      }
+    }
+
+    function backToAdminCropStep1() {
+      const editView = document.getElementById('adminCropEditorView');
+      const foot1 = document.getElementById('adminCropFooterStep1');
+      const resView = document.getElementById('adminCropResultView');
+      const foot2 = document.getElementById('adminCropFooterStep2');
+      if (editView) editView.classList.remove('hidden');
+      if (foot1) foot1.classList.remove('hidden');
+      if (resView) resView.classList.add('hidden');
+      if (foot2) foot2.classList.add('hidden');
+    }
+
+    async function saveAdminOrderCrop() {
+      const btn = document.getElementById('btnSaveAdminCrop');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span>⏳</span> <span>সংরক্ষণ হচ্ছে...</span>';
+      }
+
+      try {
+        let resultCanvas = null;
+        if (adminPendingCropCanvas) {
+          resultCanvas = adminPendingCropCanvas;
+        } else if (adminCropMode === 'box') {
           if (!adminCropper) throw new Error('Cropper পাওয়া যায়নি');
           resultCanvas = adminCropper.getCroppedCanvas({ maxWidth: 2000, maxHeight: 2000 });
         } else {
@@ -4341,7 +4467,7 @@
           if (img) img.src = `/admin/order/${encodeURIComponent(currentEditingOrderId)}/sub-preview?side=${side}&t=${Date.now()}`;
           lastEditPreviewUrl = '';
           refreshAdminEditPreview(true);
-          showAdminToast('✓ NID কার্ড ক্রপ ও সোজা করা হয়েছে!');
+          showAdminToast('✓ NID ' + (side === 'front' ? 'সামনের' : 'পেছনের') + ' পিঠ ক্রপ ও সোজা করা হয়েছে!');
         } else if (adminActiveCropTarget === 'order_studio') {
           if (!currentEditingOrderId) throw new Error('কোনো অর্ডার আইডি পাওয়া যায়নি');
           const res = await fetch(`/admin/order/${encodeURIComponent(currentEditingOrderId)}/save-crop`, {
@@ -4384,8 +4510,10 @@
       } catch (err) {
         showAdminToast('ক্রপ সংরক্ষণ করতে সমস্যা হয়েছে: ' + err.message, 'error');
       } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<span>✓</span> <span>ক্রপ সম্পন্ন ও সংরক্ষণ করুন</span>';
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>✓</span> <span>নিশ্চিত ও সংরক্ষণ করুন</span>';
+        }
       }
     }
 
