@@ -133,9 +133,14 @@ def run_cleanup():
 
 
 async def _cleanup_loop():
+    loop_count = 0
     while True:
         try:
             await asyncio.to_thread(run_cleanup)
+            loop_count += 1
+            # Run periodic cloud backup every 5 loops (~10 minutes)
+            if loop_count % 5 == 0:
+                await asyncio.to_thread(storage.backup_db_to_r2, db.DB_PATH)
         except Exception as e:
             print(f"[!] Cleanup error: {e}")
         await asyncio.sleep(120)
@@ -143,9 +148,20 @@ async def _cleanup_loop():
 
 @asynccontextmanager
 async def lifespan(app_: FastAPI):
+    # Attempt to restore latest database from Cloudflare R2 on startup
+    try:
+        await asyncio.to_thread(storage.restore_db_from_r2, db.DB_PATH)
+    except Exception as e:
+        print(f"[Lifespan] Startup DB restore check skipped: {e}")
     task = asyncio.create_task(_cleanup_loop())
     yield
     task.cancel()
+    # Final backup to Cloudflare R2 on graceful shutdown
+    try:
+        await asyncio.to_thread(storage.backup_db_to_r2, db.DB_PATH)
+        print("[Lifespan] Final DB backup to Cloudflare R2 completed.")
+    except Exception as e:
+        print(f"[Lifespan] Final DB backup error: {e}")
 
 
 app = FastAPI(title="QR Se Print - Auto Print Platform", version="1.1.0", lifespan=lifespan)
@@ -348,6 +364,7 @@ async def register_shop(
     conn.commit()
     shop_id = cursor.lastrowid
     conn.close()
+    storage.trigger_db_cloud_backup(db.DB_PATH, delay=1.0)
 
     # Notify Super Admin in real time
     await manager.notify_superadmin({
@@ -446,6 +463,7 @@ async def superadmin_dashboard(request: Request, msg: str = "", err: str = "", c
     sa_creds = db.get_superadmin_credentials()
     created_shop = db.get_shop_by_code(created.strip().lower()) if created else None
     locked_accounts = db.list_locked_accounts()
+    db_size_kb = round(os.path.getsize(db.DB_PATH) / 1024, 1) if os.path.exists(db.DB_PATH) else 0
     return templates.TemplateResponse(request=request, name="superadmin.html", context={
         "authenticated": True,
         "shops": shops,
@@ -457,6 +475,10 @@ async def superadmin_dashboard(request: Request, msg: str = "", err: str = "", c
         "msg": msg,
         "error": err,
         "created_shop": created_shop,
+        "is_r2_configured": storage.is_r2_configured(),
+        "last_db_backup_time": storage.get_last_db_backup_time(),
+        "db_size_kb": db_size_kb,
+        "db_path": db.DB_PATH,
     })
 
 
@@ -548,6 +570,7 @@ async def superadmin_create_shop(
     """, (clean_code, shop_name.strip(), owner_name.strip(), phone.strip(), hashed_pw, api_key, phone.strip(), phone.strip(), now))
     conn.commit()
     conn.close()
+    storage.trigger_db_cloud_backup(db.DB_PATH, delay=1.0)
 
     return RedirectResponse(url=f"/superadmin?created={clean_code}&msg=নতুন+দোকান+সফলভাবে+তৈরি+হয়েছে", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -624,6 +647,102 @@ async def superadmin_update_creds(request: Request, phone: str = Form(...), pass
         return RedirectResponse(url="/superadmin?err=সঠিক+নম্বর+ও+কমপক্ষে+৪+অক্ষরের+পাসওয়ার্ড+দিন", status_code=status.HTTP_303_SEE_OTHER)
     db.update_superadmin_credentials(phone.strip(), password.strip())
     return RedirectResponse(url="/superadmin?msg=সুপার+অ্যাডমিন+মোবাইল+নম্বর+ও+পাসওয়ার্ড+আপডেট+হয়েছে", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.get("/superadmin/database/download")
+async def superadmin_download_database(request: Request):
+    if not is_superadmin(request):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not os.path.exists(db.DB_PATH):
+        raise HTTPException(status_code=404, detail="Database file not found")
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    temp_dir = os.path.dirname(db.DB_PATH)
+    snap_path = os.path.join(temp_dir, f"backup_download_{timestamp}_{secrets.token_hex(4)}.db")
+
+    if not storage._create_consistent_db_snapshot(db.DB_PATH, snap_path):
+        shutil.copy2(db.DB_PATH, snap_path)
+
+    return FileResponse(
+        snap_path,
+        media_type="application/x-sqlite3",
+        filename=f"qrprint_backup_{timestamp}.db",
+        background=BackgroundTask(utils.secure_delete_file, snap_path)
+    )
+
+
+@app.post("/superadmin/database/backup-now")
+async def superadmin_backup_now(request: Request):
+    if not is_superadmin(request):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    if not storage.is_r2_configured():
+        return RedirectResponse(
+            url="/superadmin?err=ক্লাউডফ্লেয়ার+R2+কনফিগার+করা+নেই।+Render-এ+R2_BUCKET_NAME+ইত্যাদি+এনভায়রনমেন্ট+ভেরিয়েবল+সেট+করুন।",
+            status_code=status.HTTP_303_SEE_OTHER
+        )
+    success = await asyncio.to_thread(storage.backup_db_to_r2, db.DB_PATH)
+    if success:
+        return RedirectResponse(
+            url="/superadmin?msg=ক্লাউডফ্লেয়ার+R2-তে+ডেটাবেজ+সফলভাবে+ব্যাকআপ+হয়েছে!",
+            status_code=status.HTTP_303_SEE_OTHER
+        )
+    return RedirectResponse(
+        url="/superadmin?err=ক্লাউড+ব্যাকআপ+ব্যর্থ+হয়েছে।+সার্ভার+লগ+চেক+করুন।",
+        status_code=status.HTTP_303_SEE_OTHER
+    )
+
+
+@app.post("/superadmin/database/restore")
+async def superadmin_restore_database(request: Request, backup_file: UploadFile = File(...)):
+    if not is_superadmin(request):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    if not backup_file.filename:
+        return RedirectResponse(url="/superadmin?err=কোন+ফাইল+নির্বাচন+করা+হয়নি।", status_code=status.HTTP_303_SEE_OTHER)
+
+    temp_path = os.path.join(os.path.dirname(db.DB_PATH), f"restore_temp_{secrets.token_hex(6)}.db")
+    try:
+        with open(temp_path, "wb") as f:
+            while chunk := await backup_file.read(1024 * 64):
+                f.write(chunk)
+
+        # Integrity verification
+        if not storage._verify_sqlite_integrity(temp_path):
+            utils.secure_delete_file(temp_path)
+            return RedirectResponse(
+                url="/superadmin?err=ভুল+বা+নষ্ট+ফাইল!+এটি+সঠিক+SQLite+ডেটাবেজ+ফাইল+নয়।",
+                status_code=status.HTTP_303_SEE_OTHER
+            )
+
+        # Ensure required tables exist
+        import sqlite3
+        with sqlite3.connect(temp_path) as check_conn:
+            tables = [r[0] for r in check_conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+            if "shops" not in tables:
+                utils.secure_delete_file(temp_path)
+                return RedirectResponse(
+                    url="/superadmin?err=এই+ফাইলে+প্রয়োজনীয়+টেবিল+(shops)+পাওয়া+যায়নি।",
+                    status_code=status.HTTP_303_SEE_OTHER
+                )
+
+        # Atomic replacement
+        shutil.move(temp_path, db.DB_PATH)
+
+        # Immediately sync the restored database to Cloudflare R2
+        await asyncio.to_thread(storage.backup_db_to_r2, db.DB_PATH)
+
+        return RedirectResponse(
+            url="/superadmin?msg=ডেটাবেজ+সফলভাবে+রিস্টোর+হয়েছে+এবং+ক্লাউডফ্লেয়ার+R2-তেও+আপডেট+হয়েছে!",
+            status_code=status.HTTP_303_SEE_OTHER
+        )
+    except Exception as e:
+        utils.secure_delete_file(temp_path)
+        print(f"[Restore DB] Error: {e}")
+        return RedirectResponse(
+            url=f"/superadmin?err=রিস্টোর+করতে+সমস্যা+হয়েছে:+{str(e)[:50]}",
+            status_code=status.HTTP_303_SEE_OTHER
+        )
+
 
 # ── ADMIN DASHBOARD ──
 

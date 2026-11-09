@@ -59,9 +59,16 @@ def verify_password(stored_password: str, provided_password: str) -> bool:
             return False
     return hmac.compare_digest(stored_password, provided_password)
 
-DB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+DB_DIR = os.environ.get("DATA_DIR") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 os.makedirs(DB_DIR, exist_ok=True)
 DB_PATH = os.path.join(DB_DIR, "qrprint.db")
+
+def _notify_db_change(delay: float = 3.0):
+    try:
+        import storage
+        storage.trigger_db_cloud_backup(DB_PATH, delay=delay)
+    except Exception:
+        pass
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)
@@ -69,6 +76,13 @@ def get_db():
     return conn
 
 def init_db():
+    # Attempt to restore latest database from Cloudflare R2 if available (e.g. on new Render deploy)
+    try:
+        import storage
+        storage.restore_db_from_r2(DB_PATH)
+    except Exception as e:
+        print(f"[DB] R2 restore check skipped: {e}")
+
     conn = get_db()
     cursor = conn.cursor()
     
@@ -265,6 +279,7 @@ def init_db():
         print(f"[*] Demo shop created! Code: demo101, Pass: 123456, API Key: {demo_api_key}")
         
     conn.close()
+    _notify_db_change(delay=10.0)
 
 # DB Helpers
 def get_shop_by_code(shop_code: str) -> Optional[Dict[str, Any]]:
@@ -389,6 +404,7 @@ def update_shop_settings(shop_id: int, data: Dict[str, Any]):
     ))
     conn.commit()
     conn.close()
+    _notify_db_change(delay=2.0)
 
 def create_order(order_data: Dict[str, Any]) -> str:
     conn = get_db()
@@ -427,6 +443,7 @@ def create_order(order_data: Dict[str, Any]) -> str:
     ))
     conn.commit()
     conn.close()
+    _notify_db_change(delay=5.0)
     return order_data["id"]
 
 def get_order(order_id: str) -> Optional[Dict[str, Any]]:
@@ -794,6 +811,7 @@ def update_superadmin_credentials(phone: str, password: str):
     conn.execute("INSERT OR REPLACE INTO system_settings (key, value) VALUES ('superadmin_password', ?)", (hashed,))
     conn.commit()
     conn.close()
+    _notify_db_change(delay=1.0)
 
 
 def authenticate_superadmin(phone: str, password: str) -> bool:
@@ -839,6 +857,7 @@ def update_shop_by_superadmin(shop_id: int, shop_code: str, name: str, owner_nam
     """, (shop_code.strip().lower(), name.strip(), owner_name.strip(), phone.strip(), hashed, 1 if is_active else 0, shop_id))
     conn.commit()
     conn.close()
+    _notify_db_change(delay=1.0)
 
 
 def toggle_shop_active(shop_id: int, is_active: int):
@@ -846,6 +865,7 @@ def toggle_shop_active(shop_id: int, is_active: int):
     conn.execute("UPDATE shops SET is_active = ? WHERE id = ?", (1 if is_active else 0, shop_id))
     conn.commit()
     conn.close()
+    _notify_db_change(delay=1.0)
 
 
 def delete_shop_by_superadmin(shop_id: int):
@@ -856,6 +876,7 @@ def delete_shop_by_superadmin(shop_id: int):
     conn.execute("DELETE FROM shops WHERE id = ?", (shop_id,))
     conn.commit()
     conn.close()
+    _notify_db_change(delay=1.0)
 
 
 # ── Login Rate Limiting & Account Lockout (5 attempts -> 10 mins lock) ──

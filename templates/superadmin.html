@@ -319,6 +319,69 @@
           </form>
         </div>
 
+        <!-- 3. Database Cloud Sync & Backup/Restore Card -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div class="px-5 py-3.5 bg-gradient-to-r from-blue-700 to-indigo-800 text-white flex items-center justify-between">
+            <h2 class="font-bold text-sm sm:text-base flex items-center gap-2">
+              <span>💽</span> <span>ডেটাবেজ ও ক্লাউড অটো-সিঙ্ক</span>
+            </h2>
+            {% if is_r2_configured %}
+              <span class="px-2 py-0.5 bg-emerald-400 text-emerald-950 rounded-full text-[10px] font-black">● R2 সক্রিয়</span>
+            {% else %}
+              <span class="px-2 py-0.5 bg-amber-300 text-amber-950 rounded-full text-[10px] font-black">⚠️ R2 অনুপস্থিত</span>
+            {% endif %}
+          </div>
+          <div class="p-4 space-y-3.5 text-xs">
+            <!-- Status & Info -->
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+              <div class="flex items-center justify-between">
+                <span class="text-gray-500">ডেটাবেজ সাইজ:</span>
+                <span class="font-mono font-bold text-gray-800">{{ db_size_kb }} KB</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-gray-500">ক্লাউড স্টোরেজ:</span>
+                {% if is_r2_configured %}
+                  <span class="font-bold text-emerald-700">Cloudflare R2 (অটো-সিঙ্ক)</span>
+                {% else %}
+                  <span class="font-bold text-amber-700">শুধু লোকাল ডিস্ক</span>
+                {% endif %}
+              </div>
+              <div class="flex items-center justify-between text-[11px]">
+                <span class="text-gray-500">সর্বশেষ ব্যাকআপ:</span>
+                <span class="font-mono font-bold text-indigo-700">{{ last_db_backup_time or "এখনো হয়নি" }}</span>
+              </div>
+            </div>
+
+            <!-- Manual Cloud Backup Button -->
+            <form action="/superadmin/database/backup-now" method="POST">
+              <button type="submit" class="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition shadow flex items-center justify-center gap-1.5">
+                <span>☁️</span> <span>এখনই ক্লাউডে ব্যাকআপ সেভ করুন</span>
+              </button>
+            </form>
+
+            <!-- Download Backup DB -->
+            <a href="/superadmin/database/download" class="w-full py-2.5 px-3 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold rounded-xl transition flex items-center justify-center gap-1.5">
+              <span>📥</span> <span>কম্পিউটারে .db ফাইল ডাউনলোড করুন</span>
+            </a>
+
+            <!-- Restore from DB file -->
+            <div class="border-t pt-3 space-y-2">
+              <label class="block font-bold text-gray-700 text-[11px]">আগের ডেটাবেজ (.db) ফাইল রিস্টোর করুন:</label>
+              <form action="/superadmin/database/restore" method="POST" enctype="multipart/form-data" onsubmit="return confirm('⚠️ সতর্কতা: বর্তমান ডেটাবেজের সকল তথ্য পরিবর্তন হয়ে এই ফাইলের তথ্য লোড হবে এবং ক্লাউডেও সিঙ্ক হবে। আপনি কি নিশ্চিত?');" class="space-y-2">
+                <input type="file" name="backup_file" accept=".db,.sqlite,.sqlite3" required class="w-full text-xs border rounded-lg p-1.5 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:bg-slate-800 file:text-white">
+                <button type="submit" class="w-full py-2 bg-slate-800 hover:bg-black text-white font-bold rounded-xl transition">
+                  📤 ফাইল থেকে রিস্টোর ও সিঙ্ক
+                </button>
+              </form>
+            </div>
+
+            <!-- Helpful Notice -->
+            <div class="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-900 leading-relaxed">
+              💡 <b>ডেপ্লয় নিশ্চিন্ত:</b> নতুন ডেপ্লয় হলেও কোনো দোকান হারাবে না। অ্যাপ চালুর সময় স্বয়ংক্রিয়ভাবে ক্লাউড থেকে সর্বশেষ ডেটাবেজ ডাউনলোড হয়ে যায়।
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <!-- RIGHT COLUMN (8 cols): All Registered Shops Table & Controls -->
