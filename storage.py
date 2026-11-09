@@ -310,12 +310,14 @@ def backup_db_to_r2(local_db_path: str) -> bool:
                     pass
 
 
-def trigger_db_cloud_backup(local_db_path: Optional[str] = None, delay_seconds: float = 3.0):
+def trigger_db_cloud_backup(local_db_path: Optional[str] = None, delay_seconds: float = 3.0, delay: Optional[float] = None):
     """
     Debounced asynchronous trigger for database cloud backup.
     Batches rapid modifications into a single upload in a background daemon thread.
     """
     global _db_backup_debounce_timer
+    if delay is not None:
+        delay_seconds = delay
     if not is_r2_configured():
         return
 

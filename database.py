@@ -66,7 +66,7 @@ DB_PATH = os.path.join(DB_DIR, "qrprint.db")
 def _notify_db_change(delay: float = 3.0):
     try:
         import storage
-        storage.trigger_db_cloud_backup(DB_PATH, delay=delay)
+        storage.trigger_db_cloud_backup(DB_PATH, delay_seconds=delay)
     except Exception:
         pass
 

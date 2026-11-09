@@ -14,6 +14,7 @@ import hashlib
 import asyncio
 import secrets
 import mimetypes
+from urllib.parse import quote_plus, unquote_plus
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Set, Tuple, Union, Any
@@ -364,7 +365,7 @@ async def register_shop(
     conn.commit()
     shop_id = cursor.lastrowid
     conn.close()
-    storage.trigger_db_cloud_backup(db.DB_PATH, delay=1.0)
+    storage.trigger_db_cloud_backup(db.DB_PATH, delay_seconds=1.0)
 
     # Notify Super Admin in real time
     await manager.notify_superadmin({
@@ -450,6 +451,18 @@ async def logout():
 
 # ── SUPER ADMIN (MASTER OWNER CONTROL PANEL) ──
 
+def superadmin_redirect(msg: str = "", err: str = "", created: str = "") -> RedirectResponse:
+    params = []
+    if created:
+        params.append(f"created={quote_plus(str(created).strip())}")
+    if msg:
+        params.append(f"msg={quote_plus(str(msg).strip())}")
+    if err:
+        params.append(f"err={quote_plus(str(err).strip())}")
+    query = f"?{'&'.join(params)}" if params else ""
+    return RedirectResponse(url=f"/superadmin{query}", status_code=status.HTTP_303_SEE_OTHER)
+
+
 @app.get("/superadmin", response_class=HTMLResponse)
 async def superadmin_dashboard(request: Request, msg: str = "", err: str = "", created: str = ""):
     if not is_superadmin(request):
@@ -488,10 +501,7 @@ async def superadmin_unlock_account(request: Request, identifier: str = Form(...
         raise HTTPException(status_code=401, detail="Unauthorized")
     clean_id = identifier.strip()
     db.unlock_account(clean_id)
-    return RedirectResponse(
-        url=f"/superadmin?msg={clean_id}+একাউন্টটির+লক+সফলভাবে+ছুটিয়ে+দেওয়া+হয়েছে",
-        status_code=status.HTTP_303_SEE_OTHER
-    )
+    return superadmin_redirect(msg=f"{clean_id} একাউন্টটির লক সফলভাবে কাটিয়ে দেওয়া হয়েছে")
 
 
 @app.post("/superadmin/login")
@@ -535,7 +545,7 @@ async def superadmin_logout():
 async def superadmin_create_shop(
     request: Request,
     shop_name: str = Form(...),
-    owner_name: str = Form(...),
+    owner_name: str = Form(""),
     phone: str = Form(...),
     password: str = Form(...),
     shop_code: str = Form(...)
@@ -545,34 +555,41 @@ async def superadmin_create_shop(
 
     clean_code = re.sub(r"[^a-zA-Z0-9_-]", "", shop_code.strip().lower())
     if not clean_code:
-        return RedirectResponse(url="/superadmin?err=সঠিক+শপ+কোড+দিন", status_code=status.HTTP_303_SEE_OTHER)
+        return superadmin_redirect(err="সঠিক শপ কোড দিন")
 
     conn = db.get_db()
     cursor = conn.cursor()
     if cursor.execute("SELECT id FROM shops WHERE LOWER(shop_code) = ?", (clean_code,)).fetchone():
         conn.close()
-        return RedirectResponse(url="/superadmin?err=এই+শপ+কোডটি+ইতিমধ্যে+ব্যবহৃত+হয়েছে", status_code=status.HTTP_303_SEE_OTHER)
+        return superadmin_redirect(err="এই শপ কোডটি ইতিমধ্যে ব্যবহৃত হয়েছে")
 
     if cursor.execute("SELECT id FROM shops WHERE phone = ?", (phone.strip(),)).fetchone():
         conn.close()
-        return RedirectResponse(url="/superadmin?err=এই+মোবাইল+নম্বরটি+ইতিমধ্যে+নিবন্ধিত+রয়েছে", status_code=status.HTTP_303_SEE_OTHER)
+        return superadmin_redirect(err="এই মোবাইল নম্বরটি ইতিমধ্যে নিবন্ধিত রয়েছে")
 
-    api_key = "qsp_" + secrets.token_hex(16)
-    now = datetime.now().isoformat()
-    hashed_pw = db.hash_password(password.strip())
-    cursor.execute("""
-    INSERT INTO shops (
-        shop_code, name, owner_name, phone, password, api_key, 
-        bkash_number, nagad_number, allow_counter_cash,
-        rate_bw_single, rate_bw_double, rate_color_single, rate_color_double, rate_photo_4x6,
-        is_active, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 3.0, 5.0, 10.0, 18.0, 30.0, 1, ?)
-    """, (clean_code, shop_name.strip(), owner_name.strip(), phone.strip(), hashed_pw, api_key, phone.strip(), phone.strip(), now))
-    conn.commit()
-    conn.close()
-    storage.trigger_db_cloud_backup(db.DB_PATH, delay=1.0)
+    try:
+        api_key = "qsp_" + secrets.token_hex(16)
+        now = datetime.now().isoformat()
+        hashed_pw = db.hash_password(password.strip())
+        cursor.execute("""
+        INSERT INTO shops (
+            shop_code, name, owner_name, phone, password, api_key, 
+            bkash_number, nagad_number, allow_counter_cash,
+            rate_bw_single, rate_bw_double, rate_color_single, rate_color_double, rate_photo_4x6,
+            is_active, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 3.0, 5.0, 10.0, 18.0, 30.0, 1, ?)
+        """, (clean_code, shop_name.strip(), owner_name.strip(), phone.strip(), hashed_pw, api_key, phone.strip(), phone.strip(), now))
+        conn.commit()
+    except Exception as e:
+        return superadmin_redirect(err=f"দোকান তৈরি করতে সমস্যা হয়েছে: {str(e)[:50]}")
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
-    return RedirectResponse(url=f"/superadmin?created={clean_code}&msg=নতুন+দোকান+সফলভাবে+তৈরি+হয়েছে", status_code=status.HTTP_303_SEE_OTHER)
+    storage.trigger_db_cloud_backup(db.DB_PATH, delay_seconds=1.0)
+    return superadmin_redirect(created=clean_code, msg="নতুন দোকান সফলভাবে তৈরি হয়েছে")
 
 
 @app.post("/superadmin/shop/{shop_id}/update")
@@ -590,19 +607,19 @@ async def superadmin_update_shop(
         raise HTTPException(status_code=401, detail="Unauthorized")
     clean_code = re.sub(r"[^a-zA-Z0-9_-]", "", shop_code.strip().lower())
     if not clean_code:
-        return RedirectResponse(url="/superadmin?err=শপ+কোড+সঠিক+নয়", status_code=status.HTTP_303_SEE_OTHER)
+        return superadmin_redirect(err="শপ কোড সঠিক নয়")
 
     conn = db.get_db()
     dup_code = conn.execute("SELECT id FROM shops WHERE LOWER(shop_code) = ? AND id != ?", (clean_code, shop_id)).fetchone()
     dup_phone = conn.execute("SELECT id FROM shops WHERE phone = ? AND id != ?", (phone.strip(), shop_id)).fetchone()
     conn.close()
     if dup_code:
-        return RedirectResponse(url="/superadmin?err=এই+শপ+কোডটি+অন্য+দোকানে+ব্যবহৃত+হচ্ছে", status_code=status.HTTP_303_SEE_OTHER)
+        return superadmin_redirect(err="এই শপ কোডটি অন্য দোকানে ব্যবহৃত হচ্ছে")
     if dup_phone:
-        return RedirectResponse(url="/superadmin?err=এই+মোবাইল+নম্বরটি+অন্য+দোকানে+ব্যবহৃত+হচ্ছে", status_code=status.HTTP_303_SEE_OTHER)
+        return superadmin_redirect(err="এই মোবাইল নম্বরটি অন্য দোকানে ব্যবহৃত হচ্ছে")
 
     db.update_shop_by_superadmin(shop_id, clean_code, shop_name, owner_name, phone, password, 1 if is_active else 0)
-    return RedirectResponse(url="/superadmin?msg=দোকানের+তথ্য+ও+পাসওয়ার্ড+আপডেট+হয়েছে", status_code=status.HTTP_303_SEE_OTHER)
+    return superadmin_redirect(msg="দোকানের তথ্য ও পাসওয়ার্ড আপডেট হয়েছে")
 
 
 @app.post("/superadmin/shop/{shop_id}/toggle")
@@ -612,11 +629,11 @@ async def superadmin_toggle_shop(shop_id: int, request: Request, is_active: int 
     db.toggle_shop_active(shop_id, is_active)
     shop = db.get_shop_by_id(shop_id)
     if is_active and shop:
-        return RedirectResponse(
-            url=f"/superadmin?created={shop['shop_code']}&msg=দোকানটি+অনুমোদন+(Allow)+করা+হয়েছে!+এখন+দোকানদার+লগইন+করতে+পারবেন।",
-            status_code=status.HTTP_303_SEE_OTHER
+        return superadmin_redirect(
+            created=shop["shop_code"],
+            msg="দোকানটি অনুমোদন (Allow) করা হয়েছে! এখন দোকানদার লগইন করতে পারবেন।"
         )
-    return RedirectResponse(url="/superadmin?msg=দোকানের+স্ট্যাটাস+পরিবর্তন+হয়েছে", status_code=status.HTTP_303_SEE_OTHER)
+    return superadmin_redirect(msg="দোকানের স্ট্যাটাস পরিবর্তন হয়েছে")
 
 
 @app.post("/superadmin/shop/{shop_id}/delete")
@@ -624,7 +641,7 @@ async def superadmin_delete_shop(shop_id: int, request: Request):
     if not is_superadmin(request):
         raise HTTPException(status_code=401, detail="Unauthorized")
     db.delete_shop_by_superadmin(shop_id)
-    return RedirectResponse(url="/superadmin?msg=দোকানটি+মুছে+ফেলা+হয়েছে", status_code=status.HTTP_303_SEE_OTHER)
+    return superadmin_redirect(msg="দোকানটি মুছে ফেলা হয়েছে")
 
 
 @app.get("/superadmin/shop/{shop_id}/impersonate")
@@ -633,7 +650,7 @@ async def superadmin_impersonate_shop(shop_id: int, request: Request):
         raise HTTPException(status_code=401, detail="Unauthorized")
     shop = db.get_shop_by_id(shop_id)
     if not shop:
-        return RedirectResponse(url="/superadmin?err=দোকান+পাওয়া+যায়নি", status_code=status.HTTP_303_SEE_OTHER)
+        return superadmin_redirect(err="দোকান পাওয়া যায়নি")
     response = RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
     set_session(response, request, shop["id"])
     return response
@@ -644,9 +661,9 @@ async def superadmin_update_creds(request: Request, phone: str = Form(...), pass
     if not is_superadmin(request):
         raise HTTPException(status_code=401, detail="Unauthorized")
     if len(phone.strip()) < 5 or len(password.strip()) < 4:
-        return RedirectResponse(url="/superadmin?err=সঠিক+নম্বর+ও+কমপক্ষে+৪+অক্ষরের+পাসওয়ার্ড+দিন", status_code=status.HTTP_303_SEE_OTHER)
+        return superadmin_redirect(err="সঠিক নম্বর ও কমপক্ষে ৪ অক্ষরের পাসওয়ার্ড দিন")
     db.update_superadmin_credentials(phone.strip(), password.strip())
-    return RedirectResponse(url="/superadmin?msg=সুপার+অ্যাডমিন+মোবাইল+নম্বর+ও+পাসওয়ার্ড+আপডেট+হয়েছে", status_code=status.HTTP_303_SEE_OTHER)
+    return superadmin_redirect(msg="সুপার অ্যাডমিন মোবাইল নম্বর ও পাসওয়ার্ড আপডেট হয়েছে")
 
 
 @app.get("/superadmin/database/download")
@@ -676,20 +693,11 @@ async def superadmin_backup_now(request: Request):
     if not is_superadmin(request):
         raise HTTPException(status_code=401, detail="Unauthorized")
     if not storage.is_r2_configured():
-        return RedirectResponse(
-            url="/superadmin?err=ক্লাউডফ্লেয়ার+R2+কনফিগার+করা+নেই।+Render-এ+R2_BUCKET_NAME+ইত্যাদি+এনভায়রনমেন্ট+ভেরিয়েবল+সেট+করুন।",
-            status_code=status.HTTP_303_SEE_OTHER
-        )
+        return superadmin_redirect(err="ক্লাউডফ্লেয়ার R2 কনফিগার করা নেই। Render-এ R2_BUCKET_NAME ইত্যাদি এনভায়রনমেন্ট ভেরিয়েবল সেট করুন।")
     success = await asyncio.to_thread(storage.backup_db_to_r2, db.DB_PATH)
     if success:
-        return RedirectResponse(
-            url="/superadmin?msg=ক্লাউডফ্লেয়ার+R2-তে+ডেটাবেজ+সফলভাবে+ব্যাকআপ+হয়েছে!",
-            status_code=status.HTTP_303_SEE_OTHER
-        )
-    return RedirectResponse(
-        url="/superadmin?err=ক্লাউড+ব্যাকআপ+ব্যর্থ+হয়েছে।+সার্ভার+লগ+চেক+করুন।",
-        status_code=status.HTTP_303_SEE_OTHER
-    )
+        return superadmin_redirect(msg="ক্লাউডফ্লেয়ার R2-তে ডেটাবেজ সফলভাবে ব্যাকআপ হয়েছে!")
+    return superadmin_redirect(err="ক্লাউড ব্যাকআপ ব্যর্থ হয়েছে। সার্ভার লগ চেক করুন।")
 
 
 @app.post("/superadmin/database/restore")
@@ -698,7 +706,7 @@ async def superadmin_restore_database(request: Request, backup_file: UploadFile 
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     if not backup_file.filename:
-        return RedirectResponse(url="/superadmin?err=কোন+ফাইল+নির্বাচন+করা+হয়নি।", status_code=status.HTTP_303_SEE_OTHER)
+        return superadmin_redirect(err="কোন ফাইল নির্বাচন করা হয়নি।")
 
     temp_path = os.path.join(os.path.dirname(db.DB_PATH), f"restore_temp_{secrets.token_hex(6)}.db")
     try:
@@ -709,10 +717,7 @@ async def superadmin_restore_database(request: Request, backup_file: UploadFile 
         # Integrity verification
         if not storage._verify_sqlite_integrity(temp_path):
             utils.secure_delete_file(temp_path)
-            return RedirectResponse(
-                url="/superadmin?err=ভুল+বা+নষ্ট+ফাইল!+এটি+সঠিক+SQLite+ডেটাবেজ+ফাইল+নয়।",
-                status_code=status.HTTP_303_SEE_OTHER
-            )
+            return superadmin_redirect(err="ভুল বা নষ্ট ফাইল! এটি সঠিক SQLite ডেটাবেজ ফাইল নয়।")
 
         # Ensure required tables exist
         import sqlite3
@@ -720,10 +725,7 @@ async def superadmin_restore_database(request: Request, backup_file: UploadFile 
             tables = [r[0] for r in check_conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
             if "shops" not in tables:
                 utils.secure_delete_file(temp_path)
-                return RedirectResponse(
-                    url="/superadmin?err=এই+ফাইলে+প্রয়োজনীয়+টেবিল+(shops)+পাওয়া+যায়নি।",
-                    status_code=status.HTTP_303_SEE_OTHER
-                )
+                return superadmin_redirect(err="এই ফাইলে প্রয়োজনীয় টেবিল (shops) পাওয়া যায়নি।")
 
         # Atomic replacement
         shutil.move(temp_path, db.DB_PATH)
@@ -731,17 +733,11 @@ async def superadmin_restore_database(request: Request, backup_file: UploadFile 
         # Immediately sync the restored database to Cloudflare R2
         await asyncio.to_thread(storage.backup_db_to_r2, db.DB_PATH)
 
-        return RedirectResponse(
-            url="/superadmin?msg=ডেটাবেজ+সফলভাবে+রিস্টোর+হয়েছে+এবং+ক্লাউডফ্লেয়ার+R2-তেও+আপডেট+হয়েছে!",
-            status_code=status.HTTP_303_SEE_OTHER
-        )
+        return superadmin_redirect(msg="ডেটাবেজ সফলভাবে রিস্টোর হয়েছে এবং ক্লাউডফ্লেয়ার R2-তেও আপডেট হয়েছে!")
     except Exception as e:
         utils.secure_delete_file(temp_path)
         print(f"[Restore DB] Error: {e}")
-        return RedirectResponse(
-            url=f"/superadmin?err=রিস্টোর+করতে+সমস্যা+হয়েছে:+{str(e)[:50]}",
-            status_code=status.HTTP_303_SEE_OTHER
-        )
+        return superadmin_redirect(err=f"রিস্টোর করতে সমস্যা হয়েছে: {str(e)[:50]}")
 
 
 # ── ADMIN DASHBOARD ──
